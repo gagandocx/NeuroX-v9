@@ -47,8 +47,8 @@ echo [1/3] Pulling latest code...
 echo.
 
 cd /d "%REPO_DIR%"
-git fetch origin neurox-v9-release >nul 2>&1
-git reset --hard origin/neurox-v9-release >nul 2>&1
+git fetch origin main >nul 2>&1
+git reset --hard origin/main >nul 2>&1
 
 if !ERRORLEVEL! equ 0 (
     echo        [OK] Code updated to latest.

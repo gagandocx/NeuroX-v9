@@ -23,8 +23,8 @@ echo.
 :: ------------------------------------------------------------
 set "REPO_DIR=%~dp0"
 set "EA_FILE=NeuroX_EA_v9.mq5"
-set "BRANCH=neurox-v9-release"
-set "REPO_URL=https://github.com/gagandocx/NeuroX-v4.git"
+set "BRANCH=main"
+set "REPO_URL=https://github.com/gagandocx/NeuroX-v9.git"
 
 :: MT5 Terminal: EA runs here (Fusion Markets)
 set "MT5_TERMINAL_ID=EE1261C89A64D41685651B738DC52A84"
