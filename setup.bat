@@ -20,9 +20,15 @@ setlocal enabledelayedexpansion
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo Requesting Administrator privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\"' -Verb RunAs"
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%TEMP%\neurox_getadmin.vbs"
+    echo UAC.ShellExecute "%~f0", "", "", "runas", 1 >> "%TEMP%\neurox_getadmin.vbs"
+    "%TEMP%\neurox_getadmin.vbs"
+    del "%TEMP%\neurox_getadmin.vbs"
     exit /b
 )
+
+:: Ensure working directory is the script's location (admin elevation changes cwd to System32)
+cd /d "%~dp0"
 
 title NeuroX v9.4 - Fresh PC Setup (Administrator)
 color 0B
