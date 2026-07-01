@@ -4,6 +4,8 @@ setlocal enabledelayedexpansion
 :: ------------------------------------------------------------
 ::  NeuroX v9.4 - Clean Update Script
 ::  1. Clean download: replace ALL files from GitHub
+::     - Uses git if available (faster, incremental)
+::     - Falls back to ZIP download via PowerShell if git is missing
 ::  2. Copy EA + includes to MT5 terminals
 ::  3. Compile EA
 :: ------------------------------------------------------------
@@ -26,6 +28,9 @@ if "!REPO_DIR:~-1!"=="\" set "REPO_DIR=!REPO_DIR:~0,-1!"
 set "EA_FILE=NeuroX_EA_v9.mq5"
 set "BRANCH=main"
 set "REPO_URL=https://github.com/gagandocx/NeuroX-v9.git"
+set "ZIP_URL=https://github.com/gagandocx/NeuroX-v9/archive/refs/heads/main.zip"
+set "ZIP_FILE=%TEMP%\neurox_update.zip"
+set "ZIP_EXTRACT=%TEMP%\neurox_update"
 
 :: MT5 Terminal: EA runs here
 set "MT5_TERMINAL_ID=930119AA53207C8778B41171FBFFB46F"
@@ -57,6 +62,16 @@ echo.
 
 cd /d "%REPO_DIR%"
 
+:: Check if git is available
+where git >nul 2>&1
+if !ERRORLEVEL! neq 0 (
+    echo        [INFO] Git not found. Using ZIP download method...
+    goto :zip_download
+)
+
+:: --- GIT METHOD (preferred) ---
+echo        [INFO] Git detected. Using git for update...
+
 :: Check if this is a git repository
 if not exist "%REPO_DIR%\.git" (
     echo        [INFO] No git repository found. Cloning fresh...
@@ -65,8 +80,9 @@ if not exist "%REPO_DIR%\.git" (
     cd /d "!PARENT_DIR!"
     git clone --depth 1 --branch %BRANCH% "%REPO_URL%" "%REPO_DIR%" >nul 2>&1
     if !ERRORLEVEL! neq 0 (
-        echo        [ERROR] Failed to clone from GitHub. Check internet connection.
-        goto :error_exit
+        echo        [WARNING] Git clone failed. Falling back to ZIP download...
+        cd /d "%REPO_DIR%"
+        goto :zip_download
     )
     cd /d "%REPO_DIR%"
     echo        [OK] Fresh clone complete.
@@ -79,30 +95,105 @@ if !ERRORLEVEL! neq 0 (
     echo        [INFO] Shallow fetch failed, trying unshallow...
     git fetch --unshallow origin >nul 2>&1
     if !ERRORLEVEL! neq 0 (
-        echo        [ERROR] Failed to fetch from GitHub. Check internet connection.
-        goto :error_exit
+        echo        [WARNING] Git fetch failed. Falling back to ZIP download...
+        goto :zip_download
     )
     git fetch origin %BRANCH% >nul 2>&1
     if !ERRORLEVEL! neq 0 (
-        echo        [ERROR] Failed to fetch branch after unshallow. Check internet connection.
-        goto :error_exit
+        echo        [WARNING] Git fetch branch failed. Falling back to ZIP download...
+        goto :zip_download
     )
 )
 
 :: Reset all tracked files to match remote exactly
 git reset --hard origin/%BRANCH% >nul 2>&1
 if !ERRORLEVEL! neq 0 (
-    echo        [ERROR] Failed to reset files. Repository may be corrupted.
-    goto :error_exit
+    echo        [WARNING] Git reset failed. Falling back to ZIP download...
+    goto :zip_download
 )
 
 :: Remove ALL untracked and ignored files (clean download)
-:: This ensures no stale/deleted files linger from old versions
 :: Exclude .env to protect local environment configuration
 git clean -fdx --exclude=.env >nul 2>&1
 
-echo        [OK] All files replaced with latest from GitHub.
-echo        No stale files remaining.
+echo        [OK] All files replaced with latest from GitHub (git).
+echo.
+goto :step2
+
+:: --- ZIP DOWNLOAD METHOD (fallback) ---
+:zip_download
+echo.
+echo        [INFO] Downloading ZIP from GitHub...
+echo        URL: %ZIP_URL%
+echo.
+
+:: Back up .env if it exists
+set "ENV_BACKED_UP=0"
+if exist "%REPO_DIR%\.env" (
+    copy /Y "%REPO_DIR%\.env" "%TEMP%\neurox_env_backup" >nul 2>&1
+    if !ERRORLEVEL! equ 0 (
+        set "ENV_BACKED_UP=1"
+        echo        [OK] .env file backed up.
+    )
+)
+
+:: Clean up any previous temp files
+if exist "%ZIP_FILE%" del /f /q "%ZIP_FILE%" >nul 2>&1
+if exist "%ZIP_EXTRACT%" rd /s /q "%ZIP_EXTRACT%" >nul 2>&1
+
+:: Download ZIP using PowerShell
+echo        Downloading...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%' -UseBasicParsing; exit 0 } catch { Write-Host $_.Exception.Message; exit 1 }"
+if !ERRORLEVEL! neq 0 (
+    echo        [ERROR] Failed to download ZIP. Check your internet connection.
+    goto :error_exit
+)
+
+if not exist "%ZIP_FILE%" (
+    echo        [ERROR] ZIP file not found after download.
+    goto :error_exit
+)
+
+echo        [OK] ZIP downloaded successfully.
+
+:: Extract ZIP using PowerShell
+echo        Extracting...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Expand-Archive -Path '%ZIP_FILE%' -DestinationPath '%ZIP_EXTRACT%' -Force; exit 0 } catch { Write-Host $_.Exception.Message; exit 1 }"
+if !ERRORLEVEL! neq 0 (
+    echo        [ERROR] Failed to extract ZIP file.
+    goto :error_exit
+)
+
+:: Verify extracted folder exists
+if not exist "%ZIP_EXTRACT%\NeuroX-v9-main" (
+    echo        [ERROR] Expected folder 'NeuroX-v9-main' not found in ZIP.
+    goto :error_exit
+)
+
+echo        [OK] ZIP extracted successfully.
+
+:: Copy all files from extracted folder to REPO_DIR (overwrite existing)
+echo        Copying files...
+robocopy "%ZIP_EXTRACT%\NeuroX-v9-main" "%REPO_DIR%" /E /IS /IT /NFL /NDL /NJH /NJS >nul 2>&1
+:: Robocopy exit codes 0-7 are success (various copy scenarios)
+if !ERRORLEVEL! geq 8 (
+    echo        [ERROR] Failed to copy files from ZIP.
+    goto :error_exit
+)
+
+echo        [OK] All files replaced with latest from GitHub (ZIP).
+
+:: Restore .env if it was backed up
+if "!ENV_BACKED_UP!"=="1" (
+    copy /Y "%TEMP%\neurox_env_backup" "%REPO_DIR%\.env" >nul 2>&1
+    echo        [OK] .env file restored.
+    del /f /q "%TEMP%\neurox_env_backup" >nul 2>&1
+)
+
+:: Clean up temp files
+if exist "%ZIP_FILE%" del /f /q "%ZIP_FILE%" >nul 2>&1
+if exist "%ZIP_EXTRACT%" rd /s /q "%ZIP_EXTRACT%" >nul 2>&1
+
 echo.
 
 :: ------------------------------------------------------------
