@@ -68,6 +68,8 @@ input double   InpFixedSL          = 2.00;      // Fixed SL in $ (0=use signal)
 input int      InpEmaFastPeriod    = 9;         // EMA Fast period (crossover)
 input int      InpEmaSlowPeriod    = 15;        // EMA Slow period (crossover)
 input double   InpEmaMaxDistance   = 1.00;      // EMA max distance ($) - block trades when overextended
+input int      InpMinADX           = 20;        // Min ADX to allow trading (below = ranging/choppy)
+input ENUM_TIMEFRAMES InpADXTimeframe = PERIOD_M5; // ADX timeframe (M5 recommended)
 input double   InpDynamicTPThreshold = 9990.0;  // TP pips threshold for dynamic mode
 input int      InpLimitTimeout     = 30;        // Limit order timeout (seconds)
 input double   InpPartialT2Offset  = 0.30;      // Partial entry T2 offset ($)

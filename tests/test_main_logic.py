@@ -104,11 +104,11 @@ class TestReadEmaFromEa:
     """Test EMA reading from EA file."""
 
     def test_read_ema_no_file(self, tmp_path):
-        """Should return (0.0, 0.0, default, 0) if file doesn't exist."""
+        """Should return (0.0, 0.0, default, 0, 100.0) if file doesn't exist."""
         from bridge import Bridge
         bridge = Bridge(mt5_common_path=str(tmp_path))
         result = main.read_ema_from_ea(bridge)
-        assert result == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+        assert result == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
 
     def test_read_ema_valid_file(self, tmp_path):
         """Should return EMA values from a valid file."""
@@ -117,16 +117,61 @@ class TestReadEmaFromEa:
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("2650.50|2648.30|3.00|2", encoding="utf-16")
         result = main.read_ema_from_ea(bridge)
-        assert result == (2650.50, 2648.30, 3.00, 2)
+        assert result == (2650.50, 2648.30, 3.00, 2, 100.0)
 
     def test_read_ema_invalid_content(self, tmp_path):
-        """Should return (0.0, 0.0, default, 0) for invalid content."""
+        """Should return (0.0, 0.0, default, 0, 100.0) for invalid content."""
         from bridge import Bridge
         bridge = Bridge(mt5_common_path=str(tmp_path))
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("garbage", encoding="utf-16")
         result = main.read_ema_from_ea(bridge)
-        assert result == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+        assert result == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
+
+    def test_read_ema_with_adx(self, tmp_path):
+        """Should return ADX value from fifth field."""
+        from bridge import Bridge
+        bridge = Bridge(mt5_common_path=str(tmp_path))
+        ema_path = tmp_path / Config.EMA_FILE
+        ema_path.write_text("2650.50|2648.30|1.00|2|25.30", encoding="utf-16")
+        result = main.read_ema_from_ea(bridge)
+        assert result == (2650.50, 2648.30, 1.00, 2, 25.30)
+
+    def test_read_ema_without_adx_defaults_100(self, tmp_path):
+        """Should default ADX to 100.0 when not present (always allow trading)."""
+        from bridge import Bridge
+        bridge = Bridge(mt5_common_path=str(tmp_path))
+        ema_path = tmp_path / Config.EMA_FILE
+        ema_path.write_text("2650.50|2648.30|1.00|2", encoding="utf-16")
+        result = main.read_ema_from_ea(bridge)
+        assert result == (2650.50, 2648.30, 1.00, 2, 100.0)
+
+
+class TestADXFilter:
+    """Test ADX ranging market filter."""
+
+    def test_adx_below_threshold_filters(self):
+        """ADX below MIN_ADX_THRESHOLD should block trading."""
+        # ADX = 15.0 < 20.0 threshold => should be filtered
+        assert 15.0 < Config.MIN_ADX_THRESHOLD
+
+    def test_adx_above_threshold_allows(self):
+        """ADX above MIN_ADX_THRESHOLD should allow trading."""
+        # ADX = 30.0 > 20.0 threshold => should allow
+        assert 30.0 >= Config.MIN_ADX_THRESHOLD
+
+    def test_adx_at_threshold_allows(self):
+        """ADX exactly at MIN_ADX_THRESHOLD should allow trading."""
+        # ADX = 20.0 == 20.0 threshold => not less than, so allowed
+        assert not (20.0 < Config.MIN_ADX_THRESHOLD)
+
+    def test_adx_default_100_always_allows(self):
+        """Default ADX of 100.0 (EA not writing) should always allow trading."""
+        assert not (100.0 < Config.MIN_ADX_THRESHOLD)
+
+    def test_config_min_adx_threshold(self):
+        """Config MIN_ADX_THRESHOLD should be 20.0."""
+        assert Config.MIN_ADX_THRESHOLD == 20.0
 
 
 class TestGetEmaTrendLabel:

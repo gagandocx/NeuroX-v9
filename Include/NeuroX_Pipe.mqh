@@ -593,16 +593,20 @@ void WriteMT5Heartbeat()
     double ema9_buf[1], ema15_buf[1];
     static int ema9_handle = INVALID_HANDLE;
     static int ema15_handle = INVALID_HANDLE;
+    static int adx_handle = INVALID_HANDLE;
     static bool ema_debug_logged = false;
 
     if(ema9_handle == INVALID_HANDLE)
         ema9_handle = iMA(_Symbol, PERIOD_M1, InpEmaFastPeriod, 0, MODE_EMA, PRICE_CLOSE);
     if(ema15_handle == INVALID_HANDLE)
         ema15_handle = iMA(_Symbol, PERIOD_M1, InpEmaSlowPeriod, 0, MODE_EMA, PRICE_CLOSE);
+    if(adx_handle == INVALID_HANDLE)
+        adx_handle = iADX(_Symbol, InpADXTimeframe, 14);
 
     if(!ema_debug_logged)
     {
-        Print("[NeuroX] EMA init: ema9_handle=", ema9_handle, " ema15_handle=", ema15_handle);
+        Print("[NeuroX] EMA init: ema9_handle=", ema9_handle, " ema15_handle=", ema15_handle,
+              " adx_handle=", adx_handle);
     }
 
     if(ema9_handle != INVALID_HANDLE && ema15_handle != INVALID_HANDLE)
@@ -610,10 +614,17 @@ void WriteMT5Heartbeat()
         int res9 = CopyBuffer(ema9_handle, 0, 0, 1, ema9_buf);
         int res15 = CopyBuffer(ema15_handle, 0, 0, 1, ema15_buf);
         
+        // Read ADX main line (buffer 0)
+        double adx_buf[1];
+        adx_buf[0] = 100.0;  // Default: always allow trading if ADX unavailable
+        if(adx_handle != INVALID_HANDLE)
+            CopyBuffer(adx_handle, 0, 0, 1, adx_buf);
+        
         if(!ema_debug_logged)
         {
             Print("[NeuroX] EMA copy: res9=", res9, " res15=", res15,
-                  " val9=", ema9_buf[0], " val15=", ema15_buf[0]);
+                  " val9=", ema9_buf[0], " val15=", ema15_buf[0],
+                  " adx=", adx_buf[0]);
             ema_debug_logged = true;
         }
         
@@ -627,7 +638,8 @@ void WriteMT5Heartbeat()
                     DoubleToString(ema9_buf[0], 2) + "|" +
                     DoubleToString(ema15_buf[0], 2) + "|" +
                     DoubleToString(InpEmaMaxDistance, 2) + "|" +
-                    IntegerToString(CountOpenPositions()));
+                    IntegerToString(CountOpenPositions()) + "|" +
+                    DoubleToString(adx_buf[0], 2));
                 FileClose(emaFile);
             }
         }

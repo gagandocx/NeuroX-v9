@@ -85,6 +85,9 @@ class Config:
     TICK_CONSISTENCY_MIN_PCT = 0.0    # Disabled - EMA handles trend filtering
     SIGNAL_PERSISTENCE_COUNT = 1     # 1 = effectively disabled (fires on first signal)
 
+    # ADX Ranging Market Filter
+    MIN_ADX_THRESHOLD = 20.0          # Below this = ranging/choppy, don't trade
+
     # Regime detection (dual-mode system)
     REGIME_ATR_RATIO_THRESHOLD = 0.8       # current_atr/avg_atr < this = ranging/choppy
     REGIME_VARIANCE_RATIO_LOOKBACK = 20    # Bars for variance ratio computation

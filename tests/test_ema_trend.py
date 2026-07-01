@@ -148,11 +148,11 @@ class TestReadEmaFromEa:
     """Test reading EMA values from EA file."""
 
     def test_no_file_returns_zeros(self, tmp_path):
-        """Should return (0.0, 0.0, default, 0) when file doesn't exist."""
+        """Should return (0.0, 0.0, default, 0, 100.0) when file doesn't exist."""
         from bridge import Bridge
         from main import read_ema_from_ea
         bridge = Bridge(mt5_common_path=str(tmp_path))
-        assert read_ema_from_ea(bridge) == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+        assert read_ema_from_ea(bridge) == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
 
     def test_valid_file_returns_values(self, tmp_path):
         """Should parse EMA values from valid file."""
@@ -161,25 +161,25 @@ class TestReadEmaFromEa:
         bridge = Bridge(mt5_common_path=str(tmp_path))
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("2650.50|2648.30|3.00|1", encoding="utf-16")
-        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, 3.00, 1)
+        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, 3.00, 1, 100.0)
 
     def test_invalid_content_returns_zeros(self, tmp_path):
-        """Should return (0.0, 0.0, default, 0) for invalid content."""
+        """Should return (0.0, 0.0, default, 0, 100.0) for invalid content."""
         from bridge import Bridge
         from main import read_ema_from_ea
         bridge = Bridge(mt5_common_path=str(tmp_path))
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("no_pipe_here", encoding="utf-16")
-        assert read_ema_from_ea(bridge) == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+        assert read_ema_from_ea(bridge) == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
 
     def test_empty_file_returns_zeros(self, tmp_path):
-        """Should return (0.0, 0.0, default, 0) for empty file."""
+        """Should return (0.0, 0.0, default, 0, 100.0) for empty file."""
         from bridge import Bridge
         from main import read_ema_from_ea
         bridge = Bridge(mt5_common_path=str(tmp_path))
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("", encoding="utf-16")
-        assert read_ema_from_ea(bridge) == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+        assert read_ema_from_ea(bridge) == (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
 
     def test_three_field_format_with_max_distance(self, tmp_path):
         """Should parse max_distance from third field, default open_positions to 0."""
@@ -188,7 +188,7 @@ class TestReadEmaFromEa:
         bridge = Bridge(mt5_common_path=str(tmp_path))
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("2650.50|2648.30|5.00", encoding="utf-16")
-        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, 5.00, 0)
+        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, 5.00, 0, 100.0)
 
     def test_two_field_format_uses_config_default(self, tmp_path):
         """Should fall back to Config.EMA_MAX_DISTANCE when third field missing."""
@@ -197,4 +197,13 @@ class TestReadEmaFromEa:
         bridge = Bridge(mt5_common_path=str(tmp_path))
         ema_path = tmp_path / Config.EMA_FILE
         ema_path.write_text("2650.50|2648.30", encoding="utf-16")
-        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, Config.EMA_MAX_DISTANCE, 0)
+        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, Config.EMA_MAX_DISTANCE, 0, 100.0)
+
+    def test_five_field_format_with_adx(self, tmp_path):
+        """Should parse ADX value from fifth field."""
+        from bridge import Bridge
+        from main import read_ema_from_ea
+        bridge = Bridge(mt5_common_path=str(tmp_path))
+        ema_path = tmp_path / Config.EMA_FILE
+        ema_path.write_text("2650.50|2648.30|1.00|2|35.50", encoding="utf-16")
+        assert read_ema_from_ea(bridge) == (2650.50, 2648.30, 1.00, 2, 35.50)

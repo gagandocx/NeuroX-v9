@@ -45,31 +45,32 @@ def can_trade() -> bool:
 
 
 def read_ema_from_ea(bridge) -> tuple:
-    """Read EMA 9, EMA 15, max_distance, and open positions from EA.
+    """Read EMA 9, EMA 15, max_distance, open positions, and ADX from EA.
 
     The EA writes EMA values from the live chart to a shared file every tick,
     giving Python instant access to accurate EMA without warmup.
-    Format: ema9|ema15|max_distance|open_positions
+    Format: ema9|ema15|max_distance|open_positions|adx_value
 
     Returns:
-        (ema9, ema15, max_distance, open_positions) or
-        (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0) if unavailable.
+        (ema9, ema15, max_distance, open_positions, adx_value) or
+        (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0) if unavailable.
     """
     try:
         ema_path = bridge.common_path / Config.EMA_FILE
         if not ema_path.exists():
-            return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+            return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
         content = ema_path.read_text(encoding="utf-16").strip()
         if "|" not in content:
-            return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+            return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
         parts = content.split("|")
         ema9 = float(parts[0])
         ema15 = float(parts[1])
         max_distance = float(parts[2]) if len(parts) >= 3 else Config.EMA_MAX_DISTANCE
         open_positions = int(parts[3]) if len(parts) >= 4 else 0
-        return (ema9, ema15, max_distance, open_positions)
+        adx_value = float(parts[4]) if len(parts) >= 5 else 100.0
+        return (ema9, ema15, max_distance, open_positions, adx_value)
     except Exception:
-        return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0)
+        return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
 
 
 def get_ema_trend_label_from_ea(ea_ema9: float, ea_ema15: float, current_price: float) -> str:
@@ -157,7 +158,7 @@ def main():
             current_price = tick_collector.last_price
 
             # 3. Read EMA from EA file (includes open position count)
-            ea_ema9, ea_ema15, ea_max_distance, ea_open_positions = read_ema_from_ea(bridge)
+            ea_ema9, ea_ema15, ea_max_distance, ea_open_positions, ea_adx = read_ema_from_ea(bridge)
 
             # Determine EMA direction via crossover (9 vs 15)
             # Only BUY when EMA 9 > EMA 15, only SELL when EMA 15 > EMA 9
@@ -175,7 +176,10 @@ def main():
 
             if ema_allowed_direction is not None and current_price > 0.0:
                 distance = abs(current_price - ea_ema9)
-                if distance > ea_max_distance:
+                if ea_adx < Config.MIN_ADX_THRESHOLD:
+                    intel_decision = "FILTERED"
+                    intel_reason = "ADX_RANGING"
+                elif distance > ea_max_distance:
                     intel_decision = "FILTERED"
                     intel_reason = "EMA_DISTANCE"
                 elif ea_open_positions >= Config.MAX_POSITIONS:
@@ -214,11 +218,12 @@ def main():
 
             # 5. Write intelligence (EMA_TREND, decision)
             ema_label = get_ema_trend_label_from_ea(ea_ema9, ea_ema15, current_price)
+            adx_label = f"ADX={ea_adx:.1f}"
             bridge.write_intelligence(
                 strategy="EMA_TREND",
                 decision=intel_decision,
                 reason=intel_reason,
-                ema_trend=ema_label,
+                ema_trend=f"{ema_label} {adx_label}",
             )
 
             # 6. Sleep 100ms
