@@ -36,8 +36,11 @@ echo ============================================================
 echo.
 
 :: Check for admin privileges
+set "IS_ADMIN=0"
 net session >nul 2>&1
-if %ERRORLEVEL% neq 0 (
+if %ERRORLEVEL% equ 0 (
+    set "IS_ADMIN=1"
+) else (
     echo [WARNING] Not running as Administrator.
     echo           Some installations may fail without admin rights.
     echo           Right-click this file and select "Run as administrator"
@@ -87,6 +90,7 @@ set "GIT_INSTALLER=%TEMP_DIR%\git-installer.exe"
 powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $url = (Invoke-RestMethod -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest').assets | Where-Object { $_.name -match '64-bit.exe$' -and $_.name -match 'Git-' } | Select-Object -First 1 -ExpandProperty browser_download_url; if (-not $url) { $url = 'https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe' }; Write-Host \"Downloading: $url\"; Invoke-WebRequest -Uri $url -OutFile '%GIT_INSTALLER%' -UseBasicParsing }" 2>nul
 
 if not exist "%GIT_INSTALLER%" (
+    echo.
     echo        [ERROR] Failed to download Git installer.
     echo        Please download Git manually from: https://git-scm.com/download/win
     echo.
@@ -95,10 +99,34 @@ if not exist "%GIT_INSTALLER%" (
 )
 
 echo        [INFO] Running Git installer (silent)...
-"%GIT_INSTALLER%" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS="icons,ext\reg\shellhere,assoc,assoc_sh"
-if !ERRORLEVEL! neq 0 (
-    echo        [ERROR] Git installation failed.
-    echo        Please install Git manually from: https://git-scm.com/download/win
+
+:: If not admin, warn that installer may fail or request UAC
+if "!IS_ADMIN!"=="0" (
+    echo        [INFO] Not running as admin - installer may prompt for elevation.
+    echo        [INFO] If a UAC prompt appears, click Yes to allow installation.
+    echo.
+)
+
+:: Run the installer and capture the result
+:: Using start /wait to prevent the window from dying if the installer crashes
+start "" /wait "%GIT_INSTALLER%" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS="icons,ext\reg\shellhere,assoc,assoc_sh"
+set "GIT_INSTALL_RESULT=!ERRORLEVEL!"
+
+if !GIT_INSTALL_RESULT! neq 0 (
+    echo.
+    echo        [ERROR] Git installation failed (exit code: !GIT_INSTALL_RESULT!).
+    if "!IS_ADMIN!"=="0" (
+        echo        [ERROR] This is likely because the script is not running as Administrator.
+        echo        [ERROR] The silent installer requires admin privileges.
+        echo.
+        echo        Options:
+        echo          1. Right-click setup.bat and select "Run as administrator"
+        echo          2. Install Git manually from: https://git-scm.com/download/win
+    ) else (
+        echo        Please install Git manually from: https://git-scm.com/download/win
+    )
+    echo.
+    pause
     goto :git_done
 )
 
@@ -120,6 +148,8 @@ if %ERRORLEVEL% equ 0 (
 ) else (
     echo        [WARNING] Git installed but not in PATH yet.
     echo        You may need to restart this script after installation completes.
+    echo.
+    pause
 )
 
 :git_done
@@ -166,6 +196,7 @@ set "PYTHON_URL=https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe
 powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%PYTHON_INSTALLER%' -UseBasicParsing }" 2>nul
 
 if not exist "%PYTHON_INSTALLER%" (
+    echo.
     echo        [ERROR] Failed to download Python installer.
     echo        Please download Python manually from: https://www.python.org/downloads/
     echo        IMPORTANT: Check "Add Python to PATH" during installation!
@@ -175,11 +206,32 @@ if not exist "%PYTHON_INSTALLER%" (
 )
 
 echo        [INFO] Running Python installer (silent)...
-"%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 Include_launcher=1
-if !ERRORLEVEL! neq 0 (
-    echo        [ERROR] Python installation failed.
-    echo        Please install Python manually from: https://www.python.org/downloads/
+
+:: If not admin, warn about possible UAC prompt
+if "!IS_ADMIN!"=="0" (
+    echo        [INFO] Not running as admin - installer may prompt for elevation.
+    echo.
+)
+
+:: Use start /wait to prevent window from closing if installer fails
+start "" /wait "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 Include_launcher=1
+set "PYTHON_INSTALL_RESULT=!ERRORLEVEL!"
+
+if !PYTHON_INSTALL_RESULT! neq 0 (
+    echo.
+    echo        [ERROR] Python installation failed (exit code: !PYTHON_INSTALL_RESULT!).
+    if "!IS_ADMIN!"=="0" (
+        echo        [ERROR] This is likely because the script is not running as Administrator.
+        echo.
+        echo        Options:
+        echo          1. Right-click setup.bat and select "Run as administrator"
+        echo          2. Install Python manually from: https://www.python.org/downloads/
+    ) else (
+        echo        Please install Python manually from: https://www.python.org/downloads/
+    )
     echo        IMPORTANT: Check "Add Python to PATH" during installation!
+    echo.
+    pause
     goto :python_done
 )
 
@@ -207,6 +259,8 @@ if %ERRORLEVEL% equ 0 (
     ) else (
         echo        [WARNING] Python installed but not in PATH yet.
         echo        You may need to restart this script after installation completes.
+        echo.
+        pause
     )
 )
 
@@ -238,6 +292,8 @@ where git >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo        [ERROR] Git is not available. Cannot clone repository.
     echo        Please restart this script after Git installation completes.
+    echo.
+    pause
     goto :repo_done
 )
 
@@ -253,6 +309,8 @@ if !ERRORLEVEL! neq 0 (
     echo.
     echo        [ERROR] Failed to clone repository.
     echo        Check your internet connection and try again.
+    echo.
+    pause
     goto :repo_done
 )
 
@@ -282,6 +340,8 @@ if %ERRORLEVEL% equ 0 (
 if not defined PYTHON_CMD (
     echo        [ERROR] Python is not available. Cannot install packages.
     echo        Please restart this script after Python installation completes.
+    echo.
+    pause
     goto :packages_done
 )
 
@@ -301,6 +361,8 @@ if exist "%REQ_FILE%" (
         echo.
         echo        [WARNING] Some packages may have failed to install.
         echo        Try running manually: pip install numpy pandas pytest
+        echo.
+        pause
     )
 ) else (
     echo        [INFO] requirements.txt not found. Installing packages directly...
@@ -309,6 +371,8 @@ if exist "%REQ_FILE%" (
         echo        [OK] Packages installed.
     ) else (
         echo        [WARNING] Package installation had issues.
+        echo.
+        pause
     )
 )
 
@@ -415,7 +479,7 @@ if "!ALL_GOOD!"=="1" (
     echo   Some components need attention (see FAIL items above).
     echo   You may need to:
     echo     - Restart your computer to refresh PATH
-    echo     - Re-run this script after restart
+    echo     - Re-run this script as Administrator
     echo     - Install failed components manually
     echo.
 )
@@ -426,5 +490,14 @@ echo.
 :: Cleanup temp files
 if exist "%TEMP_DIR%" rd /s /q "%TEMP_DIR%" 2>nul
 
-pause
+goto :end_script
+
+:: ============================================================
+:: Global end label - script ALWAYS passes through here
+:: This ensures the window NEVER closes without the user seeing output
+:: ============================================================
+:end_script
+echo.
+echo Press any key to close this window...
+pause >nul
 exit /b 0
