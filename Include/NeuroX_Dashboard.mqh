@@ -265,6 +265,21 @@ void UpdateDashboard()
     if(StringLen(decStr) == 0) decStr = "---";
     DashRow(y, "int_dec", "Decision:", decStr, decClr);
 
+    // ADX Filter status
+    string adxStr;
+    color adxClr;
+    if(g_currentADX >= InpMinADX)
+    {
+        adxStr = "TRENDING (" + DoubleToString(g_currentADX, 1) + ")";
+        adxClr = CLR_POSITIVE;  // green = trading allowed
+    }
+    else
+    {
+        adxStr = "RANGING (" + DoubleToString(g_currentADX, 1) + ")";
+        adxClr = CLR_NEGATIVE;  // red = trading blocked
+    }
+    DashRow(y, "int_adx", "ADX Filter:", adxStr, adxClr);
+
     y += 4;
 
     // ═══════════════════════════════════════════

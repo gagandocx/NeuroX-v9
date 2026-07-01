@@ -253,6 +253,9 @@ DailyStats     g_dailyStats;
 bool           g_pipeConnected = false;
 datetime       g_pipeLastAttempt = 0;
 
+// Current ADX value (updated from WriteMT5Heartbeat)
+double         g_currentADX = 0.0;
+
 //+------------------------------------------------------------------+
 //| Utility: Compute simple checksum for struct validation             |
 //+------------------------------------------------------------------+

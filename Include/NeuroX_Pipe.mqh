@@ -619,6 +619,7 @@ void WriteMT5Heartbeat()
         adx_buf[0] = 100.0;  // Default: always allow trading if ADX unavailable
         if(adx_handle != INVALID_HANDLE)
             CopyBuffer(adx_handle, 0, 0, 1, adx_buf);
+        g_currentADX = adx_buf[0];
         
         if(!ema_debug_logged)
         {
