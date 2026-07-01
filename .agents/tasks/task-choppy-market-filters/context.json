@@ -1,0 +1,27 @@
+{
+  "project_type": "Python HF trading bot + MQL5 EA (XAUUSD momentum scalper)",
+  "language": "Python 3.x, MQL5",
+  "build_system": "pip + pytest, no Makefile",
+  "test_framework": "pytest with tests/ directory, test files: test_main_logic.py, test_momentum.py, test_tick_collector.py, test_bridge.py",
+  "build_command": "pip install -r requirements.txt",
+  "test_command": "pytest tests/ -v --ignore=tests/test_tick_collector.py",
+  "verification_instructions": "Run pytest tests/ -v --ignore=tests/test_tick_collector.py (tick_collector tests have pre-existing UTF-16 encoding failures unrelated to this task). All 51+ tests must pass.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install numpy pandas pytest",
+  "environment_constraints": "No MT5 terminal available for live testing. Validate via unit tests and AST/import checks only.",
+  "contribution_requirements": "Commit to neurox-v9-release branch. Do NOT push.",
+  "key_patterns": "Config class in config.py holds all constants. main.py has global state variables and filter functions (can_trade, has_capacity, passes_hysteresis, fire_signal). tick_collector.py has TickCollector class with _tick_prices deque. momentum.py has compute_atr and compute_momentum. Bridge writes signals as CSV dicts with action, regime, entry_type fields. Tests use pytest fixtures, reset global state via autouse fixtures.",
+  "relevant_files": [
+    "config.py",
+    "main.py",
+    "momentum.py",
+    "tick_collector.py",
+    "bridge.py",
+    "Include/NeuroX_Types.mqh",
+    "NeuroX_EA_v9.mq5",
+    "tests/test_main_logic.py",
+    "tests/test_momentum.py",
+    "tests/test_tick_collector.py"
+  ],
+  "directory_structure": "Root: config.py, main.py, momentum.py, tick_collector.py, bridge.py, trailing_stop.py, NeuroX_EA_v9.mq5. Include/: MQL5 header files. tests/: pytest test files."
+}

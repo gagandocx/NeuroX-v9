@@ -1,0 +1,23 @@
+{
+  "project_type": "MQL5 Expert Advisor for MetaTrader 5",
+  "language": "MQL5 (C++-like language for MetaTrader)",
+  "build_system": "MetaEditor compiler via Start.bat batch script",
+  "test_framework": "No automated tests for MQL5 code; validation is via successful compilation",
+  "build_command": "Not applicable in sandbox (MetaEditor is Windows-only). Validate via syntax/structure review.",
+  "test_command": "Not applicable in sandbox (no MQL5 compiler available).",
+  "verification_instructions": "1. Verify file exists and is well-formed MQL5 syntax. 2. Confirm all input parameters match spec. 3. Confirm no external dependencies (no #include, no file I/O for signals, no Python).",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "No setup needed - this is a single MQL5 file creation task.",
+  "environment_constraints": "No MQL5 compiler available in sandbox. Cannot compile or run the EA. Validation limited to code structure review and syntax checking.",
+  "contribution_requirements": "Commit with message: feat: standalone EA - no Python, pure momentum + trailing stops",
+  "key_patterns": "Existing EA uses: CTrade for execution, CPositionInfo for position queries, ObjectCreate for dashboard labels, tiered trailing stop logic with progressive tightening, PositionsTotal()/SelectByIndex() for iteration.",
+  "relevant_files": [
+    "Include/NeuroX_Position.mqh - trailing stop logic reference (ManageOpenPositions)",
+    "Include/NeuroX_Execution.mqh - market order execution reference",
+    "Include/NeuroX_Types.mqh - CTrade/CPositionInfo usage pattern",
+    "Include/NeuroX_Dashboard.mqh - dashboard label creation pattern",
+    "NeuroX_EA_v9.mq5 - main EA structure (OnInit, OnTick, OnDeinit)",
+    "Start.bat - needs update to also compile NeuroX_Standalone_v9.mq5"
+  ],
+  "directory_structure": "Root: NeuroX_EA_v9.mq5 (main EA), Start.bat, Python files (main.py, bridge.py, etc.), Include/ (MQH modules)"
+}

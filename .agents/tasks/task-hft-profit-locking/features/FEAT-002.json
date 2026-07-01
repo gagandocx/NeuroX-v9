@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Phase 2: Predictive Intelligence. Implements price acceleration (2nd derivative), volume-weighted tick direction, micro-pattern recognition (V-reversals, double-tops, rejection wicks), adaptive thresholds based on volatility, and profit-based position sizing.",
+  "status": "completed",
+  "steps": [
+    "1. Create intelligence.py with: (a) compute_acceleration(tick_prices, lookback=10) - computes 2nd derivative of price (rate of change of momentum). Returns ('ACCELERATING'|'DECELERATING'|'STABLE', value). (b) compute_weighted_tick_direction(tick_prices, lookback=20) - larger price moves count more than 1-cent moves. Weight each tick-to-tick change by its absolute magnitude. Returns ('BUY'|'SELL'|'FLAT', weighted_score). (c) detect_micro_patterns(tick_prices, lookback=30) - detect V-reversals (sharp drop then sharp recovery), double-tops (two peaks within threshold), rejection wicks (quick spike then retrace). Returns list of pattern dicts with 'pattern' and 'direction' keys. (d) compute_adaptive_thresholds(current_atr, avg_atr) - scales the $0.30/$0.50/$0.60 thresholds by volatility ratio. High vol = wider thresholds, low vol = tighter. Returns dict with 'velocity_threshold', 'scalp_threshold', 'momentum_threshold'.",
+    "2. Create performance.py with: (a) PositionSizer class that tracks win/loss history. Method record_trade(is_win, profit_amount). Method get_lot_size() - after 3 consecutive wins, increase lot by 50% (capped at 0.05). After 2 consecutive losses, decrease lot by 50% (floor at 0.01). (b) Config additions: BASE_LOT_SIZE=0.01, MAX_LOT_SIZE=0.05, MIN_LOT_SIZE=0.01, WIN_STREAK_INCREASE=3, LOSS_STREAK_DECREASE=2, LOT_INCREASE_MULT=1.5, LOT_DECREASE_MULT=0.5.",
+    "3. In config.py: Add ACCELERATION_LOOKBACK=10, WEIGHTED_TICK_LOOKBACK=20, PATTERN_LOOKBACK=30, ADAPTIVE_THRESHOLD_ENABLED=True, V_REVERSAL_MIN_DROP=0.20, V_REVERSAL_MIN_RECOVERY_PCT=0.70, DOUBLE_TOP_TOLERANCE=0.10, REJECTION_WICK_MIN=0.15, REJECTION_RETRACE_PCT=0.60.",
+    "4. In main.py: Import intelligence.py functions and PositionSizer. (a) Instantiate PositionSizer globally. (b) Before firing signals, compute adaptive thresholds and use them to override config thresholds for this cycle. (c) Compute acceleration - if DECELERATING and we have open positions, trigger brain_settings tightening. (d) Compute weighted tick direction - use as additional confirmation (if weighted direction disagrees with momentum, skip signal). (e) Check micro-patterns - if V-reversal detected, fire reversal signal. If double-top/rejection detected, tighten trailing. (f) Use PositionSizer.get_lot_size() in create_signal() instead of fixed Config.LOT_SIZE.",
+    "5. Add tests/test_intelligence.py: Test compute_acceleration with accelerating/decelerating/stable data. Test compute_weighted_tick_direction with biased ticks. Test detect_micro_patterns with V-reversal, double-top, rejection wick scenarios. Test compute_adaptive_thresholds with high/low volatility.",
+    "6. Add tests/test_performance.py: Test PositionSizer.record_trade() and get_lot_size() with win streaks, loss streaks, and mixed results. Test lot capping at MAX_LOT_SIZE and flooring at MIN_LOT_SIZE."
+  ],
+  "acceptance_criteria": [
+    "compute_acceleration() correctly identifies accelerating vs decelerating momentum",
+    "compute_weighted_tick_direction() weights larger moves more heavily than small ones",
+    "detect_micro_patterns() identifies V-reversals, double-tops, and rejection wicks from tick data",
+    "compute_adaptive_thresholds() scales thresholds proportionally to current volatility",
+    "PositionSizer increases lot after 3 wins, decreases after 2 losses, respects min/max",
+    "Main loop integrates all predictive intelligence features",
+    "All new tests pass: python -m pytest tests/test_intelligence.py tests/test_performance.py -v"
+  ],
+  "verification": [
+    "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/test_intelligence.py tests/test_performance.py -v",
+    "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": "All 69 new tests pass (39 intelligence + 30 performance). Full suite: 233 pass, 5 pre-existing failures in test_tick_collector (encoding issue, unrelated). The acceleration threshold needed tuning from 0.1x to 0.03x of TICK_MOMENTUM_THRESHOLD for realistic HFT tick magnitudes. position_sizer is a module-level global in main.py. create_signal now uses position_sizer.get_lot_size() instead of Config.LOT_SIZE."
+}

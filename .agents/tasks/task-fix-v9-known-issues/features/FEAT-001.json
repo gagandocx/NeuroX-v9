@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Fix all 4 known issues: (1) Remove confirmation timeout blocking in bridge, making signal sending fire-and-forget. (2) Add position state tracking in Python to prevent multiple signals when a position is already open. (3) Add hysteresis to momentum direction flips requiring minimum $0.50 price move before reversal. (4) Disable the redundant Python trailing stop manager since EA handles trailing tick-by-tick.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Fire-and-forget signals: In main.py, remove all calls to bridge.read_confirmation() and the associated 5-second timeout waiting. Remove the confirmation handling blocks (both in the tick-momentum section around line 80-100 and the bar-momentum section around line 120-140). The signal write itself stays; just remove the blocking wait for EA response. Remove the 'Confirmation timeout' warning messages. Keep the logger.info for signal sent.",
+    "Step 2 - Position tracking without confirmation: In main.py, add a simple position state tracking mechanism. Add a boolean `position_open = False` (or use an attribute on Bridge). After writing a signal, set position_open = True. The existing `can_trade()` cooldown check already prevents rapid-fire within 5s, but we need to also block signals when position_open is True. Add a way to detect when position is closed: since the EA writes tick prices to the file continually, track if the bridge gets an exit file written OR simply use a max hold timeout (Config.MAX_HOLD_SECONDS = 120s) to reset position_open. Also check: if not trailing.is_tracking (existing check covers this partially), do NOT use trailing_stop for tracking since we're disabling it - implement a simple timer-based position state: set position_open=True when signal fires, reset after MAX_HOLD_SECONDS. The condition for firing a signal becomes: `momentum != FLAT and can_trade() and not position_open`.",
+    "Step 3 - Hysteresis for direction flips: In main.py (or a new module-level variable), track the last signal direction sent. Before firing a new signal, check: if the new direction is opposite to the last one, require that the price has moved at least $0.50 from the price at which the last signal was sent. Add `last_signal_direction = None` and `last_signal_price = 0.0` globals. In the signal firing logic, add: if direction != last_signal_direction and last_signal_direction is not None, check abs(current_price - last_signal_price) >= 0.50 before allowing the signal. Update last_signal_direction and last_signal_price after each successful signal send. This applies to both tick-momentum and bar-momentum paths. Add HYSTERESIS_THRESHOLD = 0.50 to config.py.",
+    "Step 4 - Disable Python trailing stop: In main.py, remove the TrailingStopManager instantiation and all references to it. Remove: the import of TrailingStopManager, the `trailing = TrailingStopManager(...)` creation, `trailing.start()`, `trailing.stop()`, `trailing.is_tracking` checks (replace with `position_open` from step 2), `trailing.close_fired` checks, `trailing.start_tracking(...)` calls, `trailing.stop_tracking()` calls. Keep trailing_stop.py file intact (just unused). Remove the `get_current_price()` helper function that was only used by the trailing stop.",
+    "Step 5 - Update tests: Add test for hysteresis logic (new test or addition to test_momentum.py). Add test for position state tracking (can be a unit test in a new test file or test_bridge.py). Ensure existing tests still pass after removing trailing stop from main.py. The bridge tests should still pass since we're not changing bridge.py's write_signal method.",
+    "Step 6 - Run all tests: Execute `python -m pytest tests/ -v` and confirm all tests pass."
+  ],
+  "acceptance_criteria": [
+    "main.py no longer calls bridge.read_confirmation() anywhere",
+    "main.py no longer imports or uses TrailingStopManager",
+    "main.py tracks position_open state and prevents duplicate signals",
+    "Hysteresis logic requires $0.50 move before direction reversal",
+    "config.py has HYSTERESIS_THRESHOLD = 0.50",
+    "All existing tests pass (pytest tests/ -v)",
+    "New tests cover hysteresis and position state logic"
+  ],
+  "verification": [
+    "Run: cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v",
+    "Run: python -c 'import main' to verify no import errors",
+    "Grep main.py for 'read_confirmation' - should return no results",
+    "Grep main.py for 'TrailingStopManager' - should return no results"
+  ],
+  "blocked_reason": null,
+  "findings": "All 4 fixes implemented successfully. 5 pre-existing test failures in test_tick_collector.py (confirmed by running on base commit) are unrelated to this change. All 27 new tests pass. No import errors. The python command is not available in this environment (use python3), and pip shows a dateutil version conflict warning but it does not affect functionality."
+}

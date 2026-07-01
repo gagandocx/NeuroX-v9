@@ -1,0 +1,14 @@
+{
+  "task_id": "task-intelligence-dashboard",
+  "task_description": "Add a rich INTELLIGENCE status panel to the EA dashboard showing Python-side v9.2 intelligence state: regime, ATR filter, tick flow consistency, signal persistence, strategy mode, and overall decision with color coding. Python writes intelligence to a shared file, EA reads and displays it.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "111 tests pass (107 original + 4 new intelligence tests). 5 pre-existing failures in test_tick_collector.py unchanged. MQL5 code cannot be compiled (no MetaEditor) but follows existing patterns exactly. New tests exercise write_intelligence() method end-to-end: file creation, format validation (10 pipe-delimited fields), overwrite behavior, and specific field values."
+  }
+}

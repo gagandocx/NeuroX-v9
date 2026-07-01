@@ -1,0 +1,42 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement ATR Filter, Tick Consistency Filter, and Signal Persistence Filter to prevent whipsaw trades in choppy markets. Also bump version to 9.20 (build 20250701).",
+  "status": "completed",
+  "steps": [
+    "1. In config.py, add new constants: MIN_ATR_THRESHOLD = 0.50 (minimum ATR to allow trading), TICK_CONSISTENCY_LOOKBACK = 40 (number of recent ticks to analyze), TICK_CONSISTENCY_MIN_PCT = 0.60 (60% must move same direction), SIGNAL_PERSISTENCE_COUNT = 2 (consecutive same-direction signals needed before entry).",
+    "2. In config.py, update VERSION to '9.20' and BUILD to '20250701'.",
+    "3. In tick_collector.py, add method get_tick_consistency(lookback=None) -> tuple[str, float] that analyzes the last N ticks: counts how many consecutive tick-to-tick moves are in the same direction (up vs down), returns (dominant_direction: 'BUY'/'SELL'/'FLAT', consistency_pct: float 0.0-1.0). If consistency_pct < TICK_CONSISTENCY_MIN_PCT, it means ticks are noisy/choppy.",
+    "4. In main.py, add an ATR filter function passes_atr_filter(current_atr: float) -> bool that returns False if current_atr < Config.MIN_ATR_THRESHOLD (low volatility = sit out).",
+    "5. In main.py, add a tick consistency filter function passes_tick_consistency(tick_collector: TickCollector) -> bool that calls tick_collector.get_tick_consistency() and returns False if consistency_pct < Config.TICK_CONSISTENCY_MIN_PCT.",
+    "6. In main.py, add signal persistence tracking: a global variable signal_persistence_count (int, starts at 0) and signal_persistence_direction (str or None). Add function passes_signal_persistence(direction: str) -> bool. If direction matches signal_persistence_direction, increment counter; if different direction, reset counter to 1 and update direction. Return True only when counter >= Config.SIGNAL_PERSISTENCE_COUNT. This tracks consecutive same-direction momentum readings before allowing entry.",
+    "7. In main.py, integrate the three new filters into the bar-momentum trading branch: after computing momentum and before fire_signal, check passes_atr_filter(atr) AND passes_tick_consistency(tick_collector) AND passes_signal_persistence(momentum). Only fire if all pass plus existing checks.",
+    "8. In main.py, integrate filters into the tick-momentum branch (when price_data.empty): passes_tick_consistency and passes_signal_persistence should be checked. ATR filter is skipped in tick-only mode since we don't have bars for ATR yet.",
+    "9. In main.py, reset signal_persistence_count and signal_persistence_direction in check_position_timeout() when position state resets.",
+    "10. Update Include/NeuroX_Types.mqh: change NEUROX_VERSION to '9.20' and NEUROX_BUILD to '20250701'.",
+    "11. Update NeuroX_EA_v9.mq5: change #property version to '9.20'.",
+    "12. Add comprehensive tests in tests/test_main_logic.py: TestATRFilter class testing passes_atr_filter with ATR above/below/at threshold. TestTickConsistency class testing passes_tick_consistency. TestSignalPersistence class testing passes_signal_persistence with consecutive same/different directions, reset behavior.",
+    "13. Add tests in tests/test_tick_collector.py for get_tick_consistency() method: test with trending ticks (high consistency), test with noisy ticks (low consistency), test with insufficient data."
+  ],
+  "acceptance_criteria": [
+    "Config.MIN_ATR_THRESHOLD == 0.50",
+    "Config.TICK_CONSISTENCY_LOOKBACK == 40 and Config.TICK_CONSISTENCY_MIN_PCT == 0.60",
+    "Config.SIGNAL_PERSISTENCE_COUNT == 2",
+    "Config.VERSION == '9.20' and Config.BUILD == '20250701'",
+    "tick_collector.get_tick_consistency() returns (direction, pct) tuple",
+    "main.passes_atr_filter(0.30) returns False and main.passes_atr_filter(0.60) returns True",
+    "main.passes_signal_persistence requires 2 consecutive same-direction signals",
+    "All filters are checked in main loop before fire_signal for both tick-momentum and bar-momentum paths",
+    "pytest tests/ -v --ignore=tests/test_tick_collector.py passes all tests including new ones",
+    "NeuroX_Types.mqh has NEUROX_VERSION 9.20 and NEUROX_BUILD 20250701",
+    "NeuroX_EA_v9.mq5 has #property version 9.20"
+  ],
+  "verification": [
+    "Run: pytest tests/ -v --ignore=tests/test_tick_collector.py",
+    "Confirm all existing tests still pass (51+ tests)",
+    "Confirm new ATR filter, tick consistency, and signal persistence tests pass",
+    "Verify config.py VERSION is 9.20 and BUILD is 20250701"
+  ],
+  "blocked_reason": null,
+  "findings": "All 67 tests pass (was 51). Added 16 new tests: 5 ATR filter, 4 tick consistency, 7 signal persistence. Tick collector tests for get_tick_consistency also pass (7 additional tests in test_tick_collector.py). Version bumped to 9.20/20250701 in config.py, NeuroX_Types.mqh, and NeuroX_EA_v9.mq5."
+}

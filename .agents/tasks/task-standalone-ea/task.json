@@ -1,0 +1,7 @@
+{
+  "task_id": "task-standalone-ea",
+  "task_description": "Create a standalone MT5 EA (NeuroX_Standalone_v9.mq5) that trades purely on tick-based momentum without any Python dependency. Single self-contained file with ring buffer momentum detection, market order execution, progressive trailing stops, time/momentum exits, emergency close, and minimal dashboard. Also update Start.bat.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

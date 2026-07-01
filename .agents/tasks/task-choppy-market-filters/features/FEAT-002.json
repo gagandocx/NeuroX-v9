@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement Dual-Mode System: detect market regime (trending vs choppy) and automatically switch between momentum strategy (existing) and mean reversion strategy (fade extremes in ranging markets).",
+  "status": "completed",
+  "steps": [
+    "1. In config.py, add regime detection constants: REGIME_ATR_RATIO_THRESHOLD = 0.8 (if current_atr/avg_atr < this, market is choppy/ranging), REGIME_VARIANCE_RATIO_LOOKBACK = 20 (bars for variance ratio), REGIME_VARIANCE_RATIO_THRESHOLD = 0.5 (variance ratio below this = mean-reverting).",
+    "2. In config.py, add mean reversion constants: MEAN_REVERSION_LOOKBACK = 10 (bars to compute local range), MEAN_REVERSION_ENTRY_PCT = 0.20 (enter when price is within 20% of range extreme - buy near low, sell near high), MEAN_REVERSION_MIN_RANGE = 1.00 (minimum range width in dollars to consider mean reversion).",
+    "3. In momentum.py, add function detect_regime(prices_df: pd.DataFrame, current_atr: float, avg_atr: float) -> str that returns 'trending' or 'ranging'. Uses two criteria: (a) ATR ratio: current_atr/avg_atr < REGIME_ATR_RATIO_THRESHOLD suggests ranging, (b) Variance ratio test on close prices: compute variance of (close[i]-close[i-1]) vs variance of (close[-1]-close[0])/n; if ratio < threshold, market is mean-reverting. If BOTH criteria suggest ranging, return 'ranging'; otherwise 'trending'.",
+    "4. In momentum.py, add function compute_mean_reversion_signal(prices_df: pd.DataFrame) -> str that: computes local high/low over last MEAN_REVERSION_LOOKBACK bars, checks if range >= MEAN_REVERSION_MIN_RANGE, determines where current price sits in the range (0=low, 1=high). If price is in bottom MEAN_REVERSION_ENTRY_PCT of range, return 'BUY' (buy the dip). If in top MEAN_REVERSION_ENTRY_PCT of range, return 'SELL' (sell the rip). Otherwise 'FLAT'.",
+    "5. In main.py, integrate dual-mode into the bar-momentum path: after computing ATR and momentum, call detect_regime(price_data, atr, avg_atr). If 'trending', use existing momentum logic. If 'ranging', call compute_mean_reversion_signal(price_data) instead of compute_momentum for direction. The mean reversion signal still goes through all existing filters (hysteresis, capacity, cooldown, tick consistency, signal persistence) but ATR filter is SKIPPED in ranging mode (since low ATR is expected in ranging markets).",
+    "6. In main.py, update create_signal() call in fire_signal or a wrapper so that when in 'ranging' regime, the signal dict has regime='mean_reversion' and model_name='meanrev_v9' to distinguish from momentum signals in logging and on the EA side.",
+    "7. In main.py, add logging when regime switches: log 'Regime: TRENDING' or 'Regime: RANGING (mean reversion active)' when regime changes from previous cycle.",
+    "8. Add tests in tests/test_momentum.py: TestDetectRegime class with tests for trending detection (high ATR ratio, normal variance ratio), ranging detection (low ATR ratio, low variance ratio), edge cases (insufficient data returns 'trending' as default). TestMeanReversionSignal class: test buy signal near range low, sell signal near range high, flat in middle, flat when range too small, insufficient data.",
+    "9. Add tests in tests/test_main_logic.py: TestDualMode class verifying that regime detection integrates with main loop logic - that ranging regime triggers mean reversion signal computation and sets correct regime/model_name in signal dict."
+  ],
+  "acceptance_criteria": [
+    "detect_regime() correctly identifies trending (high ATR ratio) vs ranging (low ATR ratio + low variance ratio)",
+    "compute_mean_reversion_signal() returns BUY near range lows, SELL near range highs, FLAT in middle",
+    "Main loop uses momentum strategy when trending and mean reversion when ranging",
+    "ATR filter is skipped in ranging mode (low ATR is expected)",
+    "Signal dict has regime='mean_reversion' and model_name='meanrev_v9' for ranging signals",
+    "All existing tests still pass",
+    "New regime detection and mean reversion tests pass",
+    "pytest tests/ -v --ignore=tests/test_tick_collector.py passes"
+  ],
+  "verification": [
+    "Run: pytest tests/ -v --ignore=tests/test_tick_collector.py",
+    "Confirm all tests pass including new dual-mode tests",
+    "Verify main.py integrates regime detection in the bar-momentum code path"
+  ],
+  "blocked_reason": null,
+  "findings": "All 90 tests pass (was 67). Added 23 new tests: 8 regime detection tests (TestDetectRegime), 7 mean reversion signal tests (TestMeanReversionSignal), 8 dual-mode integration tests (TestDualMode). Config has 6 new constants for regime detection and mean reversion. momentum.py has detect_regime() and compute_mean_reversion_signal(). main.py integrates dual-mode in bar-momentum path: trending uses existing momentum+ATR filter, ranging uses mean reversion and skips ATR filter. create_signal and fire_signal accept optional regime/model_name params. last_regime global tracks regime changes with logging."
+}

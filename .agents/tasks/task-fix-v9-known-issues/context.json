@@ -1,0 +1,26 @@
+{
+  "project_type": "Python + MQL5 EA trading system (NeuroX v9 Pure Momentum HF Scalper)",
+  "language": "Python (main logic), MQL5 (MetaTrader EA)",
+  "build_system": "pip for Python deps, Start.bat for full compile+launch (Windows-only)",
+  "test_framework": "pytest with tests/ directory containing test_bridge.py, test_momentum.py, test_tick_collector.py",
+  "build_command": "pip install -r requirements.txt",
+  "test_command": "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v",
+  "verification_instructions": "1. Install deps: pip install numpy pandas pytest. 2. Run pytest tests/ -v. 3. Verify no import errors in main.py, bridge.py, momentum.py, tick_collector.py, trailing_stop.py.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install numpy pandas pytest",
+  "environment_constraints": "OPEN_INTERNET network mode. No MT5 available for live testing. Python-only validation via pytest. MQL5 code cannot be compiled (no MetaEditor in sandbox).",
+  "contribution_requirements": "Push to a feature branch, create PR against neurox-v9-release.",
+  "key_patterns": "Architecture: Python computes momentum from tick prices, writes signals to MT5 Common Files via bridge.py (flag-based IPC), EA reads signals on OnTick and executes. Signal prefix: neurox_v9_. Magic: 20250629. Config in config.py. Trailing stop tiers in both Python (trailing_stop.py) and EA (NeuroX_Position.mqh). EA already enforces max_trades=5 via InpMaxOpenTrades. The confirmation timeout is cosmetic since EA executes fine without writing back.",
+  "relevant_files": [
+    "main.py",
+    "bridge.py",
+    "trailing_stop.py",
+    "momentum.py",
+    "tick_collector.py",
+    "config.py",
+    "tests/test_bridge.py",
+    "tests/test_momentum.py",
+    "tests/test_tick_collector.py"
+  ],
+  "directory_structure": "Root: Python files (main.py, bridge.py, config.py, momentum.py, tick_collector.py, trailing_stop.py). Include/: MQL5 header files for EA. tests/: pytest test files. NeuroX_EA_v9.mq5: main EA file."
+}

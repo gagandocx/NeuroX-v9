@@ -1,0 +1,14 @@
+{
+  "task_id": "task-python-backtester",
+  "task_description": "Build a Python backtester (backtest.py) that simulates full NeuroX v9 trading logic against M1 OHLC CSV data, supporting v9.1 (momentum only) and v9.2 (full filters with regime detection) modes with comparison report output. Also create data/README.md explaining CSV format.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "backtest.py imports cleanly, prints usage on no args (exit 0), errors on missing file (exit 1), existing test suite passes (107 pass, 5 pre-existing tick_collector failures unrelated to changes). Semantic review completed with minor fixes applied (exit codes, documentation comments)."
+  }
+}

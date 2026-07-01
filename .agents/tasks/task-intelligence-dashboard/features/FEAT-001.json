@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add Python-side intelligence file writing: config constant, bridge method, and main.py integration to write intelligence state every loop iteration",
+  "status": "completed",
+  "steps": [
+    "In config.py, add INTELLIGENCE_FILE = 'neurox_v9_intelligence.txt' constant (after the existing SIGNAL_FILE_PREFIX line or in the Bridge section)",
+    "In bridge.py, add a write_intelligence() method that accepts regime, atr_value, atr_pass (bool), tick_pct (float), tick_dir (str), persistence_count (int), persistence_dir (str), strategy (str), decision (str), reason (str). The method writes a pipe-delimited line to self.common_path / Config.INTELLIGENCE_FILE. Format: 'regime|atr_value|atr_pass|tick_pct|tick_dir|persistence_count|persistence_dir|strategy|decision|reason'. Use the same error-handling pattern as write_heartbeat().",
+    "In main.py, after computing regime/ATR/filters each cycle (both bar-based and tick-based paths), call bridge.write_intelligence() with the current intelligence state. Compute the decision field: 'TRADING' if signal fires, 'FILTERED' if a filter blocked it (with reason = which filter), 'PAUSED' if brain paused. Compute strategy as 'MOMENTUM' or 'MEAN_REVERSION' based on detected regime. For the tick-based path (before bars are ready), write partial intelligence (regime='UNKNOWN', atr_value=0, strategy='TICK_MOMENTUM'). The intelligence write should happen EVERY loop iteration regardless of whether a trade fires.",
+    "Add tests in tests/test_bridge.py for the new write_intelligence() method: verify file is created with correct format, verify all fields are present and pipe-delimited, verify the file is overwritten each call (not appended)."
+  ],
+  "acceptance_criteria": [
+    "Config.INTELLIGENCE_FILE == 'neurox_v9_intelligence.txt'",
+    "bridge.write_intelligence() writes a pipe-delimited file with exactly 10 fields",
+    "main.py calls write_intelligence() every iteration in both tick-based and bar-based paths",
+    "The intelligence file is overwritten (not appended) on each write",
+    "Running pytest tests/ -v shows no new failures (pre-existing 5 in test_tick_collector.py are expected)"
+  ],
+  "verification": [
+    "Run: cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v",
+    "Confirm no new test failures beyond the pre-existing 5 in test_tick_collector.py",
+    "Verify intelligence file format by reading the test assertions"
+  ],
+  "blocked_reason": null,
+  "findings": "Implementation complete. 111 tests pass (4 new intelligence tests added). 5 pre-existing failures in test_tick_collector.py unchanged. The tick-based path writes intelligence with regime=UNKNOWN, strategy=TICK_MOMENTUM. The bar-based path writes with full regime/ATR/strategy info. Filter checking was restructured to evaluate each filter individually (no short-circuit) so the blocking reason can be reported. The passes_tick_consistency and passes_atr_filter functions are called both for intelligence reporting and for the actual filter check - this is intentional since get_tick_consistency() is side-effect-free, but passes_atr_filter() is also pure. Note: passes_signal_persistence() has a side effect (increments the persistence counter) so it is only called once in the filter chain, not separately for reporting."
+}

@@ -1,0 +1,44 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the complete Python backtester (backtest.py) and data/README.md that simulates full NeuroX v9 trading logic against M1 OHLC CSV data, supporting both v9.1 (momentum only) and v9.2 (full filters) modes with comparison report output.",
+  "status": "completed",
+  "steps": [
+    "Create data/README.md explaining the required CSV format (Date, Time, Open, High, Low, Close, Tick Volume, Volume, Spread) and how to export from MT5 (File > Open Offline > XAUUSD M1 > Export as CSV). Also mention auto-detection of common MT5 export formats.",
+    "Create backtest.py in repo root as a standalone script. Structure it with the following components:",
+    "  (a) CSV parser: Read XAUUSD M1 CSV data. Auto-detect format - support both 'Date,Time,Open,High,Low,Close,TickVolume,Volume,Spread' and tab/comma variants. If Spread column is missing, default to 16 points (0.16). Handle date parsing for common MT5 date formats (YYYY.MM.DD, YYYY-MM-DD, etc).",
+    "  (b) Backtester engine class with the following parameters from config.py: LOT_SIZE=0.01, COOLDOWN_SECONDS=5, MAX_HOLD_SECONDS=120, HYSTERESIS_THRESHOLD=0.50, MOMENTUM_LOOKBACK=8, MOMENTUM_THRESHOLD=0.60, HIGH_ATR_LOOKBACK=3, LOW_ATR_LOOKBACK=7, ATR_THRESHOLD_MULT=1.5, MAX_POSITIONS=5, STRONG_MOMENTUM_MULT=1.5, MIN_ATR_THRESHOLD=0.50, TICK_CONSISTENCY_LOOKBACK=40, TICK_CONSISTENCY_MIN_PCT=0.60, SIGNAL_PERSISTENCE_COUNT=2, REGIME_ATR_RATIO_THRESHOLD=0.8, REGIME_VARIANCE_RATIO_LOOKBACK=20, REGIME_VARIANCE_RATIO_THRESHOLD=0.5, MEAN_REVERSION_LOOKBACK=10, MEAN_REVERSION_ENTRY_PCT=0.20, MEAN_REVERSION_MIN_RANGE=1.00",
+    "  (c) Momentum computation: Reuse or replicate logic from momentum.py - compute_momentum() with adaptive ATR-based lookback, compute_atr(), detect_regime() (ATR ratio + variance ratio), compute_mean_reversion_signal(). Import directly from momentum.py.",
+    "  (d) Trailing stop simulation (4-tier system from EA): BE tier: profit >= $0.30, SL = entry + spread + $0.05 buffer (for BUY), entry - spread - buffer (for SELL). T2: profit >= $0.60, trail distance = $0.40 from current price. T3: profit >= $1.20, trail distance = $0.25. T4: profit >= $2.00, trail distance = $0.15. On each bar, update trailing SL (only tighten, never widen). Check if bar Low (for BUY) or bar High (for SELL) hits the SL.",
+    "  (e) Fixed SL = $2.00 from entry. Check on each bar if price hits fixed SL.",
+    "  (f) Hysteresis: Require $0.50 price move from last signal price to flip direction. Same-direction signals pass immediately.",
+    "  (g) Position capacity: max 5 positions, additional positions only when momentum strength >= TICK_MOMENTUM_THRESHOLD * STRONG_MOMENTUM_MULT (0.30 * 1.5 = 0.45).",
+    "  (h) Cooldown: 5 seconds (= 5 bars since we use M1 data where each bar = 60s, so cooldown is effectively ~0 bars or 1 bar depending on interpretation. Since M1 bars = 60s each, 5-second cooldown means same bar can open multiple trades. For backtesting, treat each bar as 60 seconds and allow 1 trade per bar as conservative approximation).",
+    "  (i) Max hold time: 120 seconds = 2 bars on M1 data. Force close after 2 bars if position is still open.",
+    "  (j) v9.2-only filters: ATR filter (skip if ATR < $0.50), tick consistency simulation (simulate from bar data - use directional consistency of recent closes over TICK_CONSISTENCY_LOOKBACK bars, since we don't have tick data), signal persistence (require 2 consecutive same-direction signals), regime detection (ATR ratio + variance ratio), mean reversion in ranging markets.",
+    "  (k) v9.1 mode: Only momentum computation + hysteresis + position capacity + cooldown + max hold + trailing stops + fixed SL. No ATR filter, no tick consistency, no signal persistence, no regime detection, no mean reversion.",
+    "  (l) Position tracking: Track each open position with entry price, entry bar index, direction, current trailing SL. On each bar, update all open positions (check SL hits, update trailing stops, check max hold).",
+    "  (m) Trade execution simulation: Entry at bar Close (signal generated at bar close). Apply half-spread as slippage on entry and exit.",
+    "  (n) Output comparison report showing for each mode (v9.1 and v9.2): Total trades, wins, losses, win rate, total profit, gross profit, gross loss, profit factor, max drawdown, average trade profit, best/worst trade, regime breakdown (trades in trending vs ranging - for v9.1 just show all as 'momentum').",
+    "  (o) Main entry point: Accept CSV file path as command line argument. If no arg or file not found, print usage message and exit gracefully (exit code 0). Auto-run both v9.1 and v9.2 modes and print side-by-side comparison.",
+    "  (p) Commission = $0 for all calculations. Spread from CSV if available, else 16 points (0.16 for XAUUSD). Lot size = 0.01 for all calcs."
+  ],
+  "acceptance_criteria": [
+    "Running 'python backtest.py' with no arguments prints a usage message and exits with code 0",
+    "Running 'python backtest.py nonexistent.csv' prints an error message about file not found and exits gracefully",
+    "The script imports momentum.py functions (compute_momentum, compute_atr, detect_regime, compute_mean_reversion_signal) correctly",
+    "data/README.md exists and explains CSV format and MT5 export procedure",
+    "The backtester correctly simulates all 4 trailing stop tiers with the exact parameters specified",
+    "v9.1 mode skips ATR filter, tick consistency, signal persistence, regime detection, and mean reversion",
+    "v9.2 mode includes all filters and dual-mode regime detection",
+    "Output report includes all required metrics: total trades, wins, losses, win rate, total profit, gross profit, gross loss, profit factor, max drawdown, avg trade profit, best/worst trade, regime breakdown"
+  ],
+  "verification": [
+    "Run 'python backtest.py' and confirm it prints usage message and exits with code 0",
+    "Run 'python backtest.py nonexistent_file.csv' and confirm it shows a graceful error",
+    "Run 'python -c \"import backtest\"' to confirm the module imports without errors",
+    "Run 'python -m pytest tests/ -x --tb=short' to confirm existing tests are unaffected"
+  ],
+  "blocked_reason": null,
+  "findings": "1. pandas 3.0.3 read_csv with engine='python' works fine for auto-detection. 2. The Volume column from MT5 exports (Tick Volume) triggers volume-weighted momentum mode in compute_momentum() which is designed for tick-by-tick data; for bar backtesting, the Volume column is dropped before passing to momentum functions. 3. Column name deduplication was needed in the CSV parser - MT5 exports have both 'Tick Volume' and 'Volume' columns which could both map to 'Volume' causing pandas duplicate column issues. Solved by building output DataFrame directly instead of renaming in-place. 4. All 91 non-tick-collector tests pass unaffected. The tick_collector test failure is pre-existing. 5. Review fix pass: changed sys.exit(0) to sys.exit(1) for error paths (file not found, CSV parse failure); added comment documenting trailing-stop tier divergence from Config.TRAIL_TIERS; added comment explaining why Volume is dropped; added tick consistency approximation note in report footer."
+}

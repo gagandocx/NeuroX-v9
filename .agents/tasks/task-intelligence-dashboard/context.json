@@ -1,0 +1,29 @@
+{
+  "project_type": "Python HF trading system + MQL5 Expert Advisor with shared-file bridge",
+  "language": "Python (main logic) + MQL5 (EA/dashboard/execution)",
+  "build_system": "pip for Python dependencies; MQL5 compiled by MetaEditor (not available in sandbox)",
+  "test_framework": "pytest with class-based test organization, tmp_path fixtures, autouse reset fixtures",
+  "build_command": "N/A (MQL5 cannot be compiled in sandbox; Python has no build step)",
+  "test_command": "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v",
+  "verification_instructions": "1. Run pytest to ensure no new failures. 2. Verify Python intelligence file writes correctly. 3. MQL5 syntax validated by visual inspection (no MetaEditor available).",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install -r requirements.txt (numpy, pandas, pytest)",
+  "environment_constraints": "No MetaEditor/MQL5 compiler available - MQL5 code validated by syntax consistency only. 5 pre-existing test failures in test_tick_collector.py (file encoding mismatch - UTF-16 vs ASCII) are expected and must not increase.",
+  "contribution_requirements": "Commit to neurox-v9-release branch. Do NOT push.",
+  "key_patterns": "Python-to-EA communication via shared files in MT5 Common Files folder (bridge.py writes, EA reads). File format is pipe-delimited or CSV. Bridge class uses self.common_path. Config constants use SIGNAL_FILE_PREFIX='neurox_v9_'. Dashboard uses DashRow/DashSeparator/DashLabel helpers with section-based layout. Colors: CLR_POSITIVE=clrLime (green), CLR_NEGATIVE=clrRed, CLR_NEUTRAL=clrSilver, clrYellow for caution. Dashboard objects prefixed 'NX_'. Global state variables in NeuroX_Types.mqh. OnTimer reads status files and updates dashboard every 500ms.",
+  "relevant_files": [
+    "main.py",
+    "bridge.py",
+    "config.py",
+    "tick_collector.py",
+    "momentum.py",
+    "Include/NeuroX_Types.mqh",
+    "Include/NeuroX_Execution.mqh",
+    "Include/NeuroX_Dashboard.mqh",
+    "Include/NeuroX_Pipe.mqh",
+    "NeuroX_EA_v9.mq5",
+    "tests/test_bridge.py",
+    "tests/test_main_logic.py"
+  ],
+  "directory_structure": "Root: Python files (main.py, bridge.py, config.py, momentum.py, tick_collector.py). Include/: MQL5 include files (Types, Execution, Dashboard, Pipe, Position, Reconciliation). tests/: pytest test files. NeuroX_EA_v9.mq5: main EA entry point."
+}

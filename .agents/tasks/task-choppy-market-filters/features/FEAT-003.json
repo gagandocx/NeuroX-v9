@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Skip tick consistency filter for mean reversion entries in ranging markets. The regime detector declares ranging based on low variance/ATR ratios (noisy oscillating ticks), so requiring 60% directional agreement systematically suppresses mean reversion entries.",
+  "status": "completed",
+  "steps": [
+    "1. In main.py, in the ranging/mean-reversion code path, remove passes_tick_consistency(tick_collector) from the condition chain. Keep all other filters (can_trade, has_capacity, passes_hysteresis, passes_signal_persistence).",
+    "2. Update the TestDualMode test class in tests/test_main_logic.py: add a test test_ranging_signal_skips_tick_consistency that verifies mean reversion path does not require tick consistency.",
+    "3. Run pytest tests/ -v --ignore=tests/test_tick_collector.py to confirm all tests pass."
+  ],
+  "acceptance_criteria": [
+    "passes_tick_consistency is NOT in the ranging/mean-reversion condition chain in main.py",
+    "New test test_ranging_signal_skips_tick_consistency passes",
+    "All 91 tests pass with pytest tests/ -v --ignore=tests/test_tick_collector.py"
+  ],
+  "verification": [
+    "Run: pytest tests/ -v --ignore=tests/test_tick_collector.py",
+    "All 91 tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All 91 tests pass. Removed passes_tick_consistency from the ranging path condition chain (line 372 in main.py). Added test_ranging_signal_skips_tick_consistency to TestDualMode class which inspects the source code to verify the filter is absent from the ranging block, matching the pattern of the existing test_ranging_signal_skips_atr_filter test."
+}

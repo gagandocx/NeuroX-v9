@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Wire unused module outputs into trading decisions in main.py: tick_frequency amplifier into lot sizing, MTF confluence position_mult into lot sizing for bar-momentum signals, cumulative delta divergence into signal support/warning, and add spread gate check before liquidity sweep fires.",
+  "status": "completed",
+  "steps": [
+    "Add spread_allows_trading check before firing liquidity sweep signal",
+    "Apply tick_freq_info['amplifier_mult'] to lot sizing in create_signal via a global multiplier",
+    "Apply mtf_info['position_mult'] to lot sizing for bar-based signals (trending and ranging mode)",
+    "Wire divergence_info from cumulative delta: bullish divergence supports BUY signals, bearish divergence warns/blocks, BREAKOUT_UP/DOWN fires signals when appropriate"
+  ],
+  "acceptance_criteria": [
+    "Liquidity sweep signal only fires when spread_allows_trading is True",
+    "tick_freq_info['amplifier_mult'] is applied to lot size in signals",
+    "mtf_info['position_mult'] is applied to lot size for bar-momentum signals",
+    "Cumulative delta divergence influences trading decisions (supports, warns, or fires signals)",
+    "All 346 existing passing tests still pass"
+  ],
+  "verification": [
+    "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": "All 4 review issues resolved. tick_frequency amplifier_mult and MTF position_mult applied as combined signal_lot_multiplier in create_signal(). Divergence detection wired: BREAKOUT_UP/DOWN fire immediate signals, BEARISH/BULLISH divergence blocks contradicting momentum signals in trending mode. Spread gate added before liquidity sweep. Spread computation reordered before sweep check to fix undefined variable on first iteration. Lot clamping moved outside TIME_PROFILE_ENABLED conditional so it always applies. All 346 tests still pass."
+}

@@ -1,0 +1,32 @@
+{
+  "project_type": "Python + MQL5 algorithmic trading system (HF scalper for XAUUSD)",
+  "language": "Python 3.x (core logic), MQL5 (MetaTrader EA)",
+  "build_system": "No formal build system - plain Python scripts with pytest for testing",
+  "test_framework": "pytest with class-based test organization in tests/ directory",
+  "build_command": "N/A (no compilation needed for Python)",
+  "test_command": "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v",
+  "verification_instructions": "Run pytest tests/ and confirm 276+ tests pass (5 pre-existing failures in test_tick_collector.py are known/expected)",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install numpy pandas pytest (already installed)",
+  "environment_constraints": "No MT5 terminal available, no Docker. Pure Python/file-based testing only. The tick file is UTF-16 encoded, written by EA.",
+  "contribution_requirements": "New features go in separate module files. Tests added for new modules. Version bump in config.py, NeuroX_Types.mqh, NeuroX_EA_v9.mq5, update.bat, Start.bat",
+  "key_patterns": "Each module is a standalone .py file imported by main.py. Config class in config.py holds all thresholds. TickCollector reads ticks from file, builds M1 bars. Momentum/signals computed from bars or raw ticks. Bridge writes signals to files for EA. Tests use sys.path.insert for imports and class-based organization with descriptive names.",
+  "relevant_files": [
+    "config.py",
+    "main.py",
+    "momentum.py",
+    "tick_collector.py",
+    "intelligence.py",
+    "bridge.py",
+    "optimizer.py",
+    "performance.py",
+    "Include/NeuroX_Types.mqh",
+    "NeuroX_EA_v9.mq5",
+    "Start.bat",
+    "update.bat",
+    "tests/test_intelligence.py",
+    "tests/test_tick_collector.py",
+    "tests/test_momentum.py"
+  ],
+  "directory_structure": "Root: main.py (entry), config.py, momentum.py, tick_collector.py, intelligence.py, bridge.py, optimizer.py, performance.py. Include/: MQL5 header files. tests/: pytest test files. data/: data directory."
+}

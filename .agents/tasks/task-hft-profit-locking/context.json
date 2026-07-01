@@ -1,0 +1,27 @@
+{
+  "project_type": "Python HFT trading bot with MQL5 EA bridge",
+  "language": "Python 3.x",
+  "build_system": "None (direct Python execution)",
+  "test_framework": "pytest with per-module test files in tests/",
+  "build_command": "N/A",
+  "test_command": "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v",
+  "verification_instructions": "Run pytest; 121 existing tests pass, 5 pre-existing failures in test_tick_collector (encoding issue unrelated to our changes). All new tests must pass.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install numpy pandas pytest",
+  "environment_constraints": "No MT5 runtime available. No Docker. Tests must be pure Python unit tests. The tick_collector reads from a local file written by an MT5 EA (not available in sandbox).",
+  "contribution_requirements": "All config parameters go in Config class in config.py. New modules can be created. Tests must be added for new logic. Version bump to 9.30, build 20250702.",
+  "key_patterns": "Config class holds all parameters. Main loop reads ticks via TickCollector, computes momentum/regime, fires signals via Bridge. Filters are chained (cooldown, capacity, direction lock, hysteresis, ATR, tick consistency, signal persistence). Bridge writes signal files + intelligence file for EA. Tests use tmp_path fixtures, mock time/datetime, manipulate tick_prices deque directly.",
+  "relevant_files": [
+    "config.py",
+    "main.py",
+    "momentum.py",
+    "tick_collector.py",
+    "bridge.py",
+    "trailing_stop.py",
+    "tests/test_main_logic.py",
+    "tests/test_momentum.py",
+    "tests/test_tick_collector.py",
+    "tests/test_bridge.py"
+  ],
+  "directory_structure": "Root: config.py, main.py, momentum.py, tick_collector.py, bridge.py, trailing_stop.py, backtest.py. tests/ has test_bridge.py, test_main_logic.py, test_momentum.py, test_tick_collector.py. Include/ has MQL5 headers. NeuroX_EA_v9.mq5 is the EA."
+}

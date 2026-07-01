@@ -1,0 +1,14 @@
+{
+  "task_id": "task-choppy-market-filters",
+  "task_description": "Implement choppy market filters for NeuroX v9: ATR filter (#1), Tick Consistency filter (#2), Signal Persistence (#3), and Dual-Mode system (#5). Skip session filter (#4). Bump version to 9.20.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All 91 tests pass (pytest tests/ -v --ignore=tests/test_tick_collector.py). Review finding addressed: tick consistency filter skipped for mean reversion entries in ranging markets (same as ATR filter). Implementation spans 9 files, 3 commits."
+  }
+}

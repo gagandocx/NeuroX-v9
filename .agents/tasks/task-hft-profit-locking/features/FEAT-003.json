@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Phase 3: Self-Optimizing. Implements rolling performance tracker (last 100 trades), time-of-day performance profiling with aggression adjustment, and Kelly criterion position sizing.",
+  "status": "completed",
+  "steps": [
+    "1. Create optimizer.py with: (a) RollingTracker class: maintains a deque of last 100 trade results (profit, duration, hour, direction). Methods: record_trade(profit, duration_seconds, hour, direction), get_win_rate(), get_avg_win(), get_avg_loss(), get_profit_factor(), suggest_parameters() - auto-adjusts MOMENTUM_THRESHOLD, TICK_MOMENTUM_THRESHOLD, COOLDOWN_SECONDS based on recent performance (if win_rate > 60%, tighten thresholds 10%; if < 40%, widen 20%). (b) TimeProfiler class: maintains hourly performance buckets (0-23). Methods: record_trade(hour, profit), get_hour_score(hour) -> float (-1 to +1 indicating profitability), get_aggression_mult(hour) -> float (0.5 to 2.0, scales lot size/threshold aggressiveness by hour). Hours with negative score get 0.5x, neutral get 1.0x, positive get up to 2.0x. (c) kelly_criterion(win_rate, avg_win, avg_loss) -> float: computes Kelly fraction = (win_rate * avg_win - (1-win_rate) * avg_loss) / avg_win. Clamps between 0.0 and 0.25 (quarter-Kelly for safety). Returns suggested fraction of capital to risk.",
+    "2. In config.py: Add ROLLING_TRACKER_SIZE=100, KELLY_MAX_FRACTION=0.25, KELLY_MIN_FRACTION=0.01, TIME_PROFILE_ENABLED=True, AUTO_TUNE_ENABLED=True, PERFORMANCE_FILE='neurox_v9_performance.json'.",
+    "3. In performance.py: Integrate with optimizer.py - PositionSizer should use Kelly criterion when enough data (>20 trades). Add method get_kelly_lot_size(account_balance, win_rate, avg_win, avg_loss) that returns lot_size = kelly_fraction * account_balance / margin_per_lot (simplified: kelly_fraction * BASE_LOT_SIZE / KELLY_MIN_FRACTION, capped at MAX_LOT_SIZE).",
+    "4. In main.py: Import RollingTracker and TimeProfiler from optimizer. Instantiate them globally. (a) On each trade confirmation or scalp close, call tracker.record_trade() and profiler.record_trade(). (b) At the start of each loop iteration, call profiler.get_aggression_mult(current_hour) and multiply lot_size from PositionSizer. (c) Every 10 trades, call tracker.suggest_parameters() and apply the suggested adjustments to runtime config (not file, just in-memory override). (d) Integrate Kelly sizing into PositionSizer when tracker has >= 20 trades.",
+    "5. In bridge.py: Add method write_performance_state(tracker_data: dict) that serializes the rolling tracker state to PERFORMANCE_FILE as JSON so state persists across restarts.",
+    "6. Add tests/test_optimizer.py: Test RollingTracker with various trade sequences (all wins, all losses, mixed). Test suggest_parameters() output. Test TimeProfiler hour scoring and aggression multiplier. Test kelly_criterion() with known inputs (e.g., 60% win rate, $1 avg win, $0.50 avg loss = Kelly of 0.30, clamped to 0.25). Test edge cases (0 trades, 100% win rate, 0% win rate)."
+  ],
+  "acceptance_criteria": [
+    "RollingTracker maintains last 100 trades and computes correct win_rate, avg_win, avg_loss",
+    "suggest_parameters() adjusts thresholds based on performance (tighter when winning, wider when losing)",
+    "TimeProfiler tracks per-hour profitability and returns aggression multiplier 0.5-2.0",
+    "kelly_criterion() returns correct Kelly fraction clamped to [0.0, 0.25]",
+    "Performance state is persisted to JSON file via bridge",
+    "Main loop integrates rolling tracker, time profiler, and Kelly sizing",
+    "All new tests pass: python -m pytest tests/test_optimizer.py -v",
+    "Full test suite (excluding pre-existing 5 failures) passes: python -m pytest tests/ -v"
+  ],
+  "verification": [
+    "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/test_optimizer.py -v",
+    "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": "All 43 new tests pass. Full suite: 276 pass, 5 pre-existing failures in test_tick_collector (encoding issue). The PositionSizer.get_lot_size() method signature was extended with optional kwargs (win_rate, avg_win, avg_loss) to remain backward-compatible while enabling Kelly sizing. Config class attributes are modified in-memory by auto-tune (not persisted to file). The _apply_auto_tune function modifies Config.MOMENTUM_THRESHOLD, Config.TICK_MOMENTUM_THRESHOLD, and Config.COOLDOWN_SECONDS at runtime."
+}

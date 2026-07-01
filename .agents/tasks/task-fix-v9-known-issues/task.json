@@ -1,0 +1,14 @@
+{
+  "task_id": "task-fix-v9-known-issues",
+  "task_description": "Fix 4 known issues in NeuroX v9: (1) Remove confirmation timeout spam, (2) Prevent multiple positions opening, (3) Add hysteresis to prevent whipsaw, (4) Remove redundant Python trailing stop",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "53/58 tests pass. 5 pre-existing failures in test_tick_collector.py (UTF-16 encoding mismatch in test fixtures, confirmed present on base commit). All 19 tests in test_main_logic.py pass, including new test for hysteresis reset on position timeout."
+  }
+}

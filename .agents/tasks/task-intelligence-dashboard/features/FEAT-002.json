@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add EA-side intelligence reading and dashboard display: global variables, file reader function, and color-coded INTELLIGENCE dashboard section",
+  "status": "completed",
+  "steps": [
+    "In Include/NeuroX_Types.mqh, add global variables after the existing 'g_newsWarning' line for intelligence state: string g_intelRegime=''; double g_intelATR=0.0; bool g_intelATRPass=false; double g_intelTickPct=0.0; string g_intelTickDir=''; int g_intelPersistence=0; string g_intelPersistDir=''; string g_intelStrategy=''; string g_intelDecision=''; string g_intelReason='';",
+    "In Include/NeuroX_Execution.mqh, add a ReadIntelligenceFile() function that opens 'neurox_v9_intelligence.txt' from FILE_COMMON, reads a single line, splits by '|' (pipe), parses each field into the global variables. Pattern follows ReadStatusFile(). Handle missing file gracefully (no error spam).",
+    "In NeuroX_EA_v9.mq5 input parameters section (BRIDGE COMMUNICATION group), add: input string InpIntelligenceFile = 'neurox_v9_intelligence.txt'; // Intelligence file name",
+    "In Include/NeuroX_Pipe.mqh ReadStatusUnified() or in the OnTimer() function of NeuroX_EA_v9.mq5, add a call to ReadIntelligenceFile() alongside the existing ReadStatusUnified() call.",
+    "In Include/NeuroX_Dashboard.mqh, add a new 'INTELLIGENCE' section between the existing MOMENTUM section and the POSITION section. Include rows for: Regime (TRENDING=green, RANGING=yellow), ATR (value + PASS/FAIL colored), Tick Flow (percentage + direction, green if >=60%, red if below), Persistence (count + direction), Strategy (MOMENTUM=green, MEAN_REVERSION=yellow), Decision (TRADING=green, FILTERED=yellow, PAUSED=red). Add the filter reason on a sub-row when decision is FILTERED or PAUSED."
+  ],
+  "acceptance_criteria": [
+    "NeuroX_Types.mqh has 10 new global variables for intelligence state",
+    "ReadIntelligenceFile() in NeuroX_Execution.mqh parses the pipe-delimited file correctly",
+    "The dashboard shows a new INTELLIGENCE section between MOMENTUM and POSITION",
+    "Colors follow the scheme: green=good/passing/active, yellow=caution/waiting, red=blocked/filtered",
+    "InpIntelligenceFile input parameter added to NeuroX_EA_v9.mq5",
+    "ReadIntelligenceFile() is called from OnTimer alongside ReadStatusUnified()",
+    "When decision is FILTERED, the blocking reason is displayed"
+  ],
+  "verification": [
+    "Visual inspection of MQL5 files for syntax consistency with existing patterns",
+    "Verify the dashboard section uses DashSeparator/DashRow helpers consistently",
+    "Verify ReadIntelligenceFile() follows the same FileOpen/FileReadString/StringSplit pattern as ReadStatusFile()",
+    "Run: cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v (to ensure Python side still passes)"
+  ],
+  "blocked_reason": null,
+  "findings": "All 4 MQL5 files modified successfully. 111 Python tests still pass, 5 pre-existing tick_collector failures unchanged. MQL5 cannot be compiled in sandbox but code follows existing patterns exactly (FileOpen flags, StringSplit pipe parsing, DashSeparator/DashRow dashboard helpers)."
+}

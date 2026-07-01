@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement 6 new trading modules: multi-timeframe confluence, liquidity sweep detection, tick frequency spike detection, cumulative delta, spread-as-signal, and support/resistance zones. Each module is a new .py file with config entries, integrated into main.py.",
+  "status": "completed",
+  "steps": [
+    "Create mtf_confluence.py - Multi-timeframe confluence module: Build M5 bars (aggregate 5 M1 bars) and M15 bars (aggregate 15 M1 bars). Compute momentum on each timeframe using compute_momentum() from momentum.py. Provide a function that takes completed M1 bars and returns confluence signal (all_agree, m5_direction, m15_direction, conviction_level). High conviction when all 3 align, reduced/skip when M1 disagrees with higher TFs.",
+    "Create liquidity_sweep.py - Liquidity sweep detection module: Track tick prices and timestamps. Detect when price spikes fast in one direction (velocity spike) then INSTANTLY reverses within 3-5 seconds. This is a liquidity grab pattern. Return sweep direction (the reversal direction) with high confidence. Use a rolling window of recent ticks with timestamps.",
+    "Create tick_frequency.py - Tick frequency spike detection module: Count ticks per second using tick timestamps from TickCollector. Normal = 5-15 ticks/sec. Spike to 50+ ticks/sec = institutional activity. Provide a function returning (is_spike, ticks_per_second, amplifier_mult). When tick frequency is high AND momentum aligns, increase conviction.",
+    "Create cumulative_delta.py - Cumulative delta (buy/sell pressure) module: Classify each tick as buy (price UP from previous) or sell (price DOWN). Track cumulative delta over a rolling window. Detect divergence between price direction and delta direction. Return (delta_value, delta_direction, divergence_detected, divergence_type).",
+    "Create spread_signal.py - Spread-as-signal module: Approximate spread from consecutive tick differences or bar high-low ranges. Track spread history. Detect spread widening (don't trade), spread tightening after wide (prepare to enter), and spread spike + fast move (news event, wait). Return (spread_state, can_trade, spread_value).",
+    "Create support_resistance.py - Support/resistance zones module: Track where price bounced/rejected in the last 1-2 hours using completed M1 bars. Build dynamic S/R levels from bounce points. If price approaches a level it bounced from 3+ times, expect bounce (mean reversion signal). If price BREAKS through with high velocity, breakout continuation signal. Return (sr_levels, nearest_level, signal_type, distance_to_level).",
+    "Add all new config parameters to config.py under clearly labeled sections for each feature (Phase 4 section): MTF settings, liquidity sweep thresholds, tick frequency thresholds, cumulative delta window, spread thresholds, S/R zone parameters.",
+    "Integrate all 6 modules into main.py: import new modules, call them in the main loop, use their outputs to amplify/filter/adjust signals. MTF confluence gates bar-momentum signals. Liquidity sweep fires instant reversal signals (like velocity spike). Tick frequency amplifies conviction. Cumulative delta provides early warnings. Spread-as-signal gates trading. S/R zones inform mean reversion and breakout signals.",
+    "Add tests for all 6 new modules in tests/ directory: tests/test_mtf_confluence.py, tests/test_liquidity_sweep.py, tests/test_tick_frequency.py, tests/test_cumulative_delta.py, tests/test_spread_signal.py, tests/test_support_resistance.py. Follow the class-based test pattern from tests/test_intelligence.py."
+  ],
+  "acceptance_criteria": [
+    "All 6 new module files exist and are importable without errors",
+    "Config.py has all new parameters for all 6 features",
+    "main.py imports and uses all 6 new modules in the trading loop",
+    "All new tests pass when running python -m pytest tests/ -v",
+    "All 276 pre-existing passing tests still pass",
+    "Each module has clear docstrings explaining its trading logic"
+  ],
+  "verification": [
+    "cd /projects/sandbox/NeuroX-v4 && python -c 'import mtf_confluence; import liquidity_sweep; import tick_frequency; import cumulative_delta; import spread_signal; import support_resistance; print(\"All modules import OK\")'",
+    "cd /projects/sandbox/NeuroX-v4 && python -m pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": "All 6 modules implemented with full test coverage (70 tests). All modules integrate into main.py trading loop: tick_frequency as signal amplifier, liquidity_sweep as instant reversal signal, spread_signal as trading gate, cumulative_delta for divergence detection, mtf_confluence for position sizing via multi-TF alignment, support_resistance for bounce/breakout signals in ranging mode. Existing 276 tests continue to pass (5 pre-existing tick_collector failures unchanged)."
+}

@@ -1,0 +1,25 @@
+{
+  "project_type": "Python HF trading system (NeuroX v9) with MQL5 EA",
+  "language": "Python 3",
+  "build_system": "None (standalone scripts, pip for deps)",
+  "test_framework": "pytest (tests/ directory)",
+  "build_command": "python -c \"import backtest\"",
+  "test_command": "python -m pytest tests/ -x --tb=short",
+  "verification_instructions": "1. Run 'python backtest.py' with no args to confirm it shows a usage message gracefully. 2. Run 'python -m pytest tests/' to confirm existing tests still pass (5 tick_collector tests fail pre-existing, not related).",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install numpy pandas (already installed in environment)",
+  "environment_constraints": "numpy 2.5.0 and pandas 3.0.3 pre-installed. No Docker needed. No external network needed - pure Python implementation.",
+  "contribution_requirements": "Commit to neurox-v9-release branch. Do NOT push.",
+  "key_patterns": "Config class in config.py holds all constants. momentum.py has compute_momentum(), compute_atr(), detect_regime(), compute_mean_reversion_signal(). Trailing stop tiers from EA: BE=$0.30 (SL=entry+spread+buffer), T2=$0.60 profit/dist $0.40, T3=$1.20/dist $0.25, T4=$2.00/dist $0.15. Fixed SL=$2.00. Lot=0.01. XAUUSD: 0.01 lot = $0.01/point = $1 per $1 move.",
+  "relevant_files": [
+    "config.py",
+    "momentum.py",
+    "main.py",
+    "tick_collector.py",
+    "trailing_stop.py",
+    "Include/NeuroX_Position.mqh",
+    "NeuroX_EA_v9.mq5",
+    "NeuroX_Standalone_v9.mq5"
+  ],
+  "directory_structure": "Root: main.py (trading loop), config.py (constants), momentum.py (signal logic), tick_collector.py (tick aggregation), trailing_stop.py (Python trailing stop manager), bridge.py (signal bridge to EA). Include/ has MQL5 header files. tests/ has pytest tests. New files to create: backtest.py (root), data/README.md."
+}

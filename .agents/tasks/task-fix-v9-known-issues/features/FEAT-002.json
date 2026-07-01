@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Address review issues: (1) Reset hysteresis state on position timeout, (2) Use single time.time() in fire_signal, (3) Add comment to TRAIL_TIERS, (4) Add test for hysteresis reset on timeout.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Fix Issue #2: Reset last_signal_direction=None and last_signal_price=0.0 in check_position_timeout() when position is reset.",
+    "Step 2 - Fix Issue #3: Use a single now=time.time() in fire_signal and assign both last_signal_time and position_open_time from it.",
+    "Step 3 - Fix Issue #4: Add a comment to TRAIL_TIERS in config.py noting it is retained for reference/future use.",
+    "Step 4 - Add test: Verify hysteresis state (last_signal_direction, last_signal_price) is reset when position timeout fires.",
+    "Step 5 - Run tests and verify."
+  ],
+  "acceptance_criteria": [
+    "check_position_timeout resets last_signal_direction=None and last_signal_price=0.0",
+    "fire_signal uses a single time.time() call for both timestamps",
+    "TRAIL_TIERS has a comment explaining it is retained for future use",
+    "New test verifies hysteresis state reset on position timeout",
+    "All tests pass"
+  ],
+  "verification": [
+    "Run: python -m pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}
