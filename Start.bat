@@ -23,12 +23,13 @@ echo.
 :: CONFIGURATION
 :: ══════════════════════════════════════════════════════════════
 set "REPO_DIR=%~dp0"
+if "!REPO_DIR:~-1!"=="\" set "REPO_DIR=!REPO_DIR:~0,-1!"
 set "WORKING_DIR=%REPO_DIR%"
 set "MAX_RESTARTS=10"
 set "RESTART_DELAY=5"
 
-:: MT5 Terminal: EA runs here (Fusion Markets)
-set "MT5_TERMINAL_ID=EE1261C89A64D41685651B738DC52A84"
+:: MT5 Terminal: EA runs here
+set "MT5_TERMINAL_ID=930119AA53207C8778B41171FBFFB46F"
 set "MT5_BASE=C:\Users\gagan\AppData\Roaming\MetaQuotes\Terminal\%MT5_TERMINAL_ID%"
 set "MT5_EXPERTS=%MT5_BASE%\MQL5\Experts\Advisors"
 set "MT5_INCLUDE=%MT5_BASE%\MQL5\Include\NeuroX"
@@ -37,8 +38,6 @@ set "MT5_INCLUDE=%MT5_BASE%\MQL5\Include\NeuroX"
 set "MT5_EDITOR_ID=D0E8209F77C8CF37AD8BF550E51FF075"
 set "MT5_EDITOR_BASE=C:\Users\gagan\AppData\Roaming\MetaQuotes\Terminal\%MT5_EDITOR_ID%"
 set "MT5_EDITOR_INCLUDE=%MT5_EDITOR_BASE%\MQL5\Include\NeuroX"
-
-:: NEVER touch 930119AA53207C8778B41171FBFFB46F (that's v4)
 
 :: ══════════════════════════════════════════════════════════════
 :: STEP 1: Pull Latest Code from GitHub
@@ -63,7 +62,7 @@ echo.
 echo [2/3] Compiling NeuroX v9.4 EA...
 echo.
 
-set "EA_SOURCE=%REPO_DIR%NeuroX_EA_v9.mq5"
+set "EA_SOURCE=%REPO_DIR%\NeuroX_EA_v9.mq5"
 set "METAEDITOR="
 
 :: Find MetaEditor
@@ -89,15 +88,15 @@ copy /Y "%EA_SOURCE%" "%MT5_EXPERTS%\" >nul 2>&1
 echo        [OK] EA copied to: %MT5_EXPERTS%
 
 :: Copy includes to EA terminal
-if exist "%REPO_DIR%Include\*.mqh" (
-    copy /Y "%REPO_DIR%Include\*.mqh" "%MT5_INCLUDE%\" >nul 2>&1
+if exist "%REPO_DIR%\Include\*.mqh" (
+    copy /Y "%REPO_DIR%\Include\*.mqh" "%MT5_INCLUDE%\" >nul 2>&1
     echo        [OK] Includes copied to: %MT5_INCLUDE%
 )
 
 :: Copy includes to MetaEditor resolution terminal
 if not exist "%MT5_EDITOR_INCLUDE%" mkdir "%MT5_EDITOR_INCLUDE%"
-if exist "%REPO_DIR%Include\*.mqh" (
-    copy /Y "%REPO_DIR%Include\*.mqh" "%MT5_EDITOR_INCLUDE%\" >nul 2>&1
+if exist "%REPO_DIR%\Include\*.mqh" (
+    copy /Y "%REPO_DIR%\Include\*.mqh" "%MT5_EDITOR_INCLUDE%\" >nul 2>&1
     echo        [OK] Includes copied to: %MT5_EDITOR_INCLUDE% (MetaEditor)
 )
 

@@ -25,8 +25,8 @@ Stripped-down high-frequency momentum scalper for XAUUSD. No models, no ensemble
 ## Quick Start
 
 ```bash
-# 1. Clone
-git clone https://github.com/gagandocx/NeuroX-v9.git
+# 1. Clone (into path with spaces is supported)
+git clone https://github.com/gagandocx/NeuroX-v9.git "F:\Automation\EA Testing\NeuroX\NeuroX v9.0"
 
 # 2. Install dependencies
 pip install -r requirements.txt
@@ -59,9 +59,8 @@ This can run simultaneously with v8 on the same MT5 terminal:
 
 ## Terminal Assignments
 
-- EA runs on: `EE1261C89A64D41685651B738DC52A84` (Fusion Markets)
+- EA runs on: `930119AA53207C8778B41171FBFFB46F`
 - Includes copied to: `D0E8209F77C8CF37AD8BF550E51FF075` (MetaEditor)
-- Never touches: `930119AA53207C8778B41171FBFFB46F` (v4)
 
 ## What This Is NOT
 
