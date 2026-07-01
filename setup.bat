@@ -1,34 +1,40 @@
 @echo off
+
+:: ============================================================
+:: KEEP WINDOW OPEN NO MATTER WHAT
+:: When double-clicked (no args), relaunch with cmd /k so window stays open
+:: ============================================================
+if "%~1"=="" (
+    cmd /k call "%~f0" run
+    exit /b
+)
+
 setlocal enabledelayedexpansion
 
 :: ============================================================
 ::  NeuroX v9.4 - COMPLETE Fresh PC Setup (Single File)
 ::  Download this ONE file and double-click. It does everything:
-::    1. Auto-elevates to Administrator
-::    2. Installs Git (via winget or direct download)
-::    3. Installs Python 3.12 (via winget or direct download)
-::    4. Downloads NeuroX v9 repo via ZIP (no git needed)
-::    5. Installs Python packages (numpy, pandas, pytest)
-::    6. Copies EA + Include files to MT5 terminals
-::    7. Compiles EA if MetaEditor found
-::    8. Verifies everything works
+::    1. Installs Git (via winget or direct download)
+::    2. Installs Python 3.12 (via winget or direct download)
+::    3. Downloads NeuroX v9 repo via ZIP (no git needed)
+::    4. Installs Python packages (numpy, pandas, pytest)
+::    5. Copies EA + Include files to MT5 terminals
+::    6. Compiles EA if MetaEditor found
+::    7. Verifies everything works
 :: ============================================================
 
-:: ============================================================
-:: SELF-ELEVATE TO ADMIN (required for silent installs)
-:: ============================================================
+:: Check admin (warn only, no auto-elevation)
 net session >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo Requesting Administrator privileges...
-    echo Set UAC = CreateObject^("Shell.Application"^) > "%TEMP%\neurox_getadmin.vbs"
-    echo UAC.ShellExecute "%~f0", "", "", "runas", 1 >> "%TEMP%\neurox_getadmin.vbs"
-    "%TEMP%\neurox_getadmin.vbs"
-    del "%TEMP%\neurox_getadmin.vbs"
-    exit /b
+    echo.
+    echo [WARNING] Not running as Administrator!
+    echo           Git and Python installs may fail.
+    echo           TIP: Right-click setup.bat and select "Run as administrator"
+    echo.
+    echo           Press any key to continue anyway...
+    pause >nul
+    echo.
 )
-
-:: Ensure working directory is the script's location (admin elevation changes cwd to System32)
-cd /d "%~dp0"
 
 title NeuroX v9.4 - Fresh PC Setup (Administrator)
 color 0B
