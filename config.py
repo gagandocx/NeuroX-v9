@@ -65,7 +65,7 @@ class Config:
     # ═══════════════════════════════════════════════════════════════════
     # ═══ CHANGE THIS TO ADJUST HOW FAR FROM EMA 9 ENTRIES ARE ALLOWED ═══
     # ═══════════════════════════════════════════════════════════════════
-    EMA_MAX_DISTANCE = 3.00    # Only enter within $3.00 of EMA 9 (increase = more trades, decrease = tighter entries)
+    EMA_MAX_DISTANCE = 1.00    # Only enter within $1.00 of EMA 9 (increase = more trades, decrease = tighter entries)
     # ═══════════════════════════════════════════════════════════════════
 
     # EMA Master Trend (price vs EMA 9) - absolute direction filter
@@ -123,7 +123,7 @@ class Config:
     # Position sizing (profit-based)
     BASE_LOT_SIZE = 0.10
     MAX_LOT_SIZE = 0.50
-    MIN_LOT_SIZE = 0.10
+    MIN_LOT_SIZE = 0.05
     WIN_STREAK_INCREASE = 3
     LOSS_STREAK_DECREASE = 2
     LOT_INCREASE_MULT = 1.5

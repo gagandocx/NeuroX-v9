@@ -61,13 +61,13 @@ input int      InpMagicNumber      = 20250629;  // Magic number for orders (uniq
 input int      InpSlippage         = 5;         // Slippage in points (tight HF fills)
 input int      InpMaxOpenTrades    = 5;         // Max simultaneous positions
 input double   InpMaxLotSize       = 1.0;       // Maximum lot size
-input double   InpMinLotSize       = 0.10;      // Minimum lot size
+input double   InpMinLotSize       = 0.05;      // Minimum lot size
 input double   InpDefaultLotSize   = 0.10;      // Default lot (if signal=0)
 input double   InpMinConfidence    = 0.10;      // Minimum confidence to trade
 input double   InpFixedSL          = 2.00;      // Fixed SL in $ (0=use signal)
 input int      InpEmaFastPeriod    = 9;         // EMA Fast period (crossover)
 input int      InpEmaSlowPeriod    = 15;        // EMA Slow period (crossover)
-input double   InpEmaMaxDistance   = 3.00;      // EMA max distance ($) - block trades when overextended
+input double   InpEmaMaxDistance   = 1.00;      // EMA max distance ($) - block trades when overextended
 input double   InpDynamicTPThreshold = 9990.0;  // TP pips threshold for dynamic mode
 input int      InpLimitTimeout     = 30;        // Limit order timeout (seconds)
 input double   InpPartialT2Offset  = 0.30;      // Partial entry T2 offset ($)
@@ -99,7 +99,7 @@ input double   InpEmergencyLossLimit = 50.0;    // Emergency close-all loss ($)
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 input bool     InpShowDashboard    = true;      // Show on-chart dashboard
-input int      InpDashboardScale   = 100;       // Dashboard scale % (50-200)
+input int      InpDashboardScale   = 110;       // Dashboard scale % (50-200)
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                     |
