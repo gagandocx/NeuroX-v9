@@ -2,21 +2,19 @@
 setlocal enabledelayedexpansion
 
 :: ------------------------------------------------------------
-::  NeuroX v9.4 - Clean Update Script
-::  1. Clean download: replace ALL files from GitHub
-::     - Uses git if available (faster, incremental)
-::     - Falls back to ZIP download via PowerShell if git is missing
+::  NeuroX v9.4 - Force Update Script
+::  1. Force download: always downloads latest ZIP from GitHub
 ::  2. Copy EA + includes to MT5 terminals
 ::  3. Compile EA
 :: ------------------------------------------------------------
 
-title NeuroX v9.4 - Clean Update
+title NeuroX v9.4 - Force Update
 color 0B
 
 echo.
 echo ============================================================
-echo   NeuroX v9.4 - Clean Update
-echo   Full download from GitHub (replaces all files)
+echo   NeuroX v9.4 - Force Update
+echo   Always downloads latest from GitHub (replaces all files)
 echo ============================================================
 echo.
 
@@ -26,8 +24,6 @@ echo.
 set "REPO_DIR=%~dp0"
 if "!REPO_DIR:~-1!"=="\" set "REPO_DIR=!REPO_DIR:~0,-1!"
 set "EA_FILE=NeuroX_EA_v9.mq5"
-set "BRANCH=main"
-set "REPO_URL=https://github.com/gagandocx/NeuroX-v9.git"
 set "ZIP_URL=https://github.com/gagandocx/NeuroX-v9/archive/refs/heads/main.zip"
 set "ZIP_FILE=%TEMP%\neurox_update.zip"
 set "ZIP_EXTRACT=%TEMP%\neurox_update"
@@ -54,78 +50,13 @@ for %%P in (
 )
 
 :: ------------------------------------------------------------
-:: STEP 1: Clean Download from GitHub
+:: STEP 1: Force Download ZIP from GitHub
 :: ------------------------------------------------------------
-echo [1/3] Downloading latest version from GitHub...
-echo        Branch: %BRANCH%
+echo [1/3] Force downloading latest version from GitHub...
+echo        URL: %ZIP_URL%
 echo.
 
 cd /d "%REPO_DIR%"
-
-:: Check if git is available
-where git >nul 2>&1
-if !ERRORLEVEL! neq 0 (
-    echo        [INFO] Git not found. Using ZIP download method...
-    goto :zip_download
-)
-
-:: --- GIT METHOD (preferred) ---
-echo        [INFO] Git detected. Using git for update...
-
-:: Check if this is a git repository
-if not exist "%REPO_DIR%\.git" (
-    echo        [INFO] No git repository found. Cloning fresh...
-    for %%I in ("%REPO_DIR%") do set "PARENT_DIR=%%~dpI"
-    if "!PARENT_DIR:~-1!"=="\" set "PARENT_DIR=!PARENT_DIR:~0,-1!"
-    cd /d "!PARENT_DIR!"
-    git clone --depth 1 --branch %BRANCH% "%REPO_URL%" "%REPO_DIR%" >nul 2>&1
-    if !ERRORLEVEL! neq 0 (
-        echo        [WARNING] Git clone failed. Falling back to ZIP download...
-        cd /d "%REPO_DIR%"
-        goto :zip_download
-    )
-    cd /d "%REPO_DIR%"
-    echo        [OK] Fresh clone complete.
-    goto :step2
-)
-
-:: Fetch latest from remote (handle shallow clones)
-git fetch --depth 1 origin %BRANCH% >nul 2>&1
-if !ERRORLEVEL! neq 0 (
-    echo        [INFO] Shallow fetch failed, trying unshallow...
-    git fetch --unshallow origin >nul 2>&1
-    if !ERRORLEVEL! neq 0 (
-        echo        [WARNING] Git fetch failed. Falling back to ZIP download...
-        goto :zip_download
-    )
-    git fetch origin %BRANCH% >nul 2>&1
-    if !ERRORLEVEL! neq 0 (
-        echo        [WARNING] Git fetch branch failed. Falling back to ZIP download...
-        goto :zip_download
-    )
-)
-
-:: Reset all tracked files to match remote exactly
-git reset --hard origin/%BRANCH% >nul 2>&1
-if !ERRORLEVEL! neq 0 (
-    echo        [WARNING] Git reset failed. Falling back to ZIP download...
-    goto :zip_download
-)
-
-:: Remove ALL untracked and ignored files (clean download)
-:: Exclude .env to protect local environment configuration
-git clean -fdx --exclude=.env >nul 2>&1
-
-echo        [OK] All files replaced with latest from GitHub (git).
-echo.
-goto :step2
-
-:: --- ZIP DOWNLOAD METHOD (fallback) ---
-:zip_download
-echo.
-echo        [INFO] Downloading ZIP from GitHub...
-echo        URL: %ZIP_URL%
-echo.
 
 :: Back up .env if it exists
 set "ENV_BACKED_UP=0"
@@ -172,8 +103,8 @@ if not exist "%ZIP_EXTRACT%\NeuroX-v9-main" (
 
 echo        [OK] ZIP extracted successfully.
 
-:: Copy all files from extracted folder to REPO_DIR (overwrite existing)
-echo        Copying files...
+:: Copy all files from extracted folder to REPO_DIR (force overwrite)
+echo        Copying files (force overwrite)...
 robocopy "%ZIP_EXTRACT%\NeuroX-v9-main" "%REPO_DIR%" /E /IS /IT /NFL /NDL /NJH /NJS >nul 2>&1
 :: Robocopy exit codes 0-7 are success (various copy scenarios)
 if !ERRORLEVEL! geq 8 (
@@ -181,7 +112,7 @@ if !ERRORLEVEL! geq 8 (
     goto :error_exit
 )
 
-echo        [OK] All files replaced with latest from GitHub (ZIP).
+echo        [OK] All files replaced with latest from GitHub.
 
 :: Restore .env if it was backed up
 if "!ENV_BACKED_UP!"=="1" (
@@ -199,7 +130,6 @@ echo.
 :: ------------------------------------------------------------
 :: STEP 2: Copy EA + Includes to MT5
 :: ------------------------------------------------------------
-:step2
 echo [2/3] Copying files to MT5 terminals...
 echo.
 
