@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Implement candle-close exit system with swing high/low SL, $5 profit breakeven at $1, and advanced M1 reversal detection for early loss cutting.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. In config.py: Remove old TRAIL_TIERS and MAX_HOLD_SECONDS. Add new exit-related config: CANDLE_CLOSE_EXIT=True, NO_TP=True, SWING_SL_LOOKBACK=10 (bars to look back for swing hi/lo), SWING_SL_MIN_DISTANCE=0.50 (minimum SL distance from entry), BREAKEVEN_PROFIT_THRESHOLD=5.00 (profit $ to trigger BE move), BREAKEVEN_LOCK_AMOUNT=1.00 ($ profit locked at BE), REVERSAL_DETECTION_ENABLED=True, REVERSAL_CANDLE_BODY_MIN=0.40 (minimum candle body size $), REVERSAL_CANDLE_BODY_RATIO=0.70 (body must be >= 70% of candle range), REVERSAL_ATR_MULT=1.5 (candle must be >= 1.5x recent ATR), REVERSAL_VOLUME_SPIKE=1.5 (volume must be 1.5x average - if available), MAX_POSITIONS=1 (only 1 trade at a time since we close at candle close).",
     "2. Rewrite trailing_stop.py completely. Replace the old 4-tier system with a new CandleCloseManager class that: (a) Tracks an active position (direction, entry_price, ticket, entry_time). (b) On each tick, checks if a new M1 candle has closed (minute changed). When candle closes, fires CLOSE_FULL exit signal. (c) Before candle close, checks the $5 profit breakeven: if profit >= $5, writes MODIFY_SL to move SL to entry + $1 (BUY) or entry - $1 (SELL). (d) Implements early reversal detection: checks if the current forming candle is a high-momentum reversal against the trade. Criteria: large body (>= REVERSAL_CANDLE_BODY_MIN), body ratio (>= REVERSAL_CANDLE_BODY_RATIO), candle range >= REVERSAL_ATR_MULT * recent ATR average. If detected, fires early CLOSE_FULL. (e) Still runs on 100ms interval like old trailing stop.",
@@ -29,5 +29,5 @@
     "python3 -m pytest tests/test_candle_close.py tests/test_swing_levels.py tests/test_main_logic.py -v --tb=short"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 150 targeted tests pass (test_candle_close 35, test_swing_levels 17, test_main_logic 51, test_ema_trend 18, test_choppy_filter 29). Full suite: 393 passed, 20 failed (pre-existing in test_optimizer, test_performance, test_spread_signal, test_tick_collector - unrelated). CandleCloseManager replaces TrailingStopManager in trailing_stop.py. Main loop uses single-position candle-close cycle: entry with swing SL -> wait for candle close -> exit -> re-evaluate. Config.MAX_POSITIONS changed from 5 to 1. tp_pips=0 means no TP. EA ManageOpenPositions simplified to BE-only ($5 profit -> SL at entry+$1). CalculateTP returns 0 when tp_pips<=0."
 }
