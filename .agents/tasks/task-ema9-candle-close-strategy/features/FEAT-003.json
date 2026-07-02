@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Address semantic review issues: activate ATR/variance ratio voters, use EA swing levels as fallback, fix breakeven MODIFY_SL retry logic, document acceptable limitations.",
+  "status": "in_progress",
+  "steps": [
+    "1. In main.py: Compute ATR from tick_collector._completed_bars using momentum.compute_atr (convert bars to DataFrame). Compute variance_ratio from completed bars. Pass current_atr, avg_atr, and variance_ratio to is_market_choppy() call.",
+    "2. In main.py: Use EA-provided ea_swing_high/ea_swing_low as fallback when tick_collector completed_bars has fewer than SWING_SL_LOOKBACK bars. Pass them to compute_swing_sl or use them directly.",
+    "3. In swing_levels.py: Add ea_swing_high/ea_swing_low parameters to compute_swing_sl so it can use EA values as fallback when Python bars are insufficient.",
+    "4. In trailing_stop.py: Fix breakeven MODIFY_SL - only set _be_moved=True AFTER successful write (move assignment after write_exit call, set back to False if exception occurs).",
+    "5. Add comments documenting acceptable limitations: single-minute race window (issue 4) and reversal detection cold start (issue 5)."
+  ],
+  "acceptance_criteria": [
+    "is_market_choppy() receives current_atr, avg_atr, and variance_ratio computed from completed bars",
+    "EA swing levels are used as fallback when Python bar buffer is insufficient",
+    "_be_moved is only set True after successful write_exit call",
+    "Issues 4 and 5 are documented with comments in the relevant code",
+    "All tests pass"
+  ],
+  "verification": [
+    "python3 -m pytest tests/ --tb=short -q --ignore=tests/test_bridge.py"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

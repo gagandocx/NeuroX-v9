@@ -20,6 +20,8 @@ def compute_swing_sl(
     entry_price: float,
     lookback: int = None,
     swing_width: int = 2,
+    ea_swing_high: float = 0.0,
+    ea_swing_low: float = 0.0,
 ) -> float:
     """
     Compute the stop loss price based on the last obvious swing high/low.
@@ -27,16 +29,23 @@ def compute_swing_sl(
     For BUY trades: SL is placed at the last swing low (below entry).
     For SELL trades: SL is placed at the last swing high (above entry).
 
+    When the Python-side bar buffer is insufficient (fewer than
+    swing_width*2+1 bars), uses EA-provided swing levels as fallback.
+    The EA has access to full MetaTrader history from the first tick,
+    so ea_swing_high/ea_swing_low are available immediately at startup.
+
     Args:
         completed_bars: List of dicts with keys Open, High, Low, Close.
         direction: "BUY" or "SELL".
         entry_price: The trade entry price.
         lookback: Number of recent bars to search. Defaults to Config.SWING_SL_LOOKBACK.
         swing_width: Number of bars on each side to confirm a swing point.
+        ea_swing_high: EA-provided swing high (max of last 20 bars from MT5).
+        ea_swing_low: EA-provided swing low (min of last 20 bars from MT5).
 
     Returns:
         The swing level as the SL price. If no swing found within lookback,
-        uses SWING_SL_MIN_DISTANCE from entry as fallback.
+        uses EA swing levels or SWING_SL_MIN_DISTANCE from entry as fallback.
     """
     if lookback is None:
         lookback = Config.SWING_SL_LOOKBACK
@@ -44,8 +53,10 @@ def compute_swing_sl(
     min_distance = Config.SWING_SL_MIN_DISTANCE
 
     if not completed_bars or len(completed_bars) < (swing_width * 2 + 1):
-        # Not enough bars - use fallback
-        return _fallback_sl(direction, entry_price, min_distance)
+        # Not enough Python bars - use EA swing levels if available
+        return _ea_swing_fallback(
+            direction, entry_price, min_distance, ea_swing_high, ea_swing_low
+        )
 
     # Use only the last 'lookback' bars
     bars = completed_bars[-lookback:] if len(completed_bars) > lookback else list(completed_bars)
@@ -179,3 +190,42 @@ def _fallback_sl(direction: str, entry_price: float, min_distance: float) -> flo
     elif direction == "SELL":
         return entry_price + min_distance
     return entry_price - min_distance
+
+
+def _ea_swing_fallback(
+    direction: str,
+    entry_price: float,
+    min_distance: float,
+    ea_swing_high: float,
+    ea_swing_low: float,
+) -> float:
+    """Use EA-provided swing levels as fallback, or min_distance if EA values unavailable.
+
+    The EA computes swing_high as max(high[0..19]) and swing_low as min(low[0..19])
+    from MetaTrader's bar history, which is available immediately at startup.
+
+    Args:
+        direction: "BUY" or "SELL".
+        entry_price: The trade entry price.
+        min_distance: Minimum SL distance from entry ($).
+        ea_swing_high: EA-provided swing high (0.0 if unavailable).
+        ea_swing_low: EA-provided swing low (0.0 if unavailable).
+
+    Returns:
+        SL price using EA swing levels, with min_distance enforcement.
+    """
+    if direction == "BUY" and ea_swing_low > 0.0 and ea_swing_low < entry_price:
+        distance = entry_price - ea_swing_low
+        if distance >= min_distance:
+            return ea_swing_low
+        else:
+            return entry_price - min_distance
+    elif direction == "SELL" and ea_swing_high > 0.0 and ea_swing_high > entry_price:
+        distance = ea_swing_high - entry_price
+        if distance >= min_distance:
+            return ea_swing_high
+        else:
+            return entry_price + min_distance
+
+    # EA swing levels not available or not valid - use absolute minimum fallback
+    return _fallback_sl(direction, entry_price, min_distance)

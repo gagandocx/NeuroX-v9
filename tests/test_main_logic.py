@@ -226,10 +226,10 @@ class TestNoRemovedLogic:
     """Verify that removed logic is no longer in main.py."""
 
     def test_no_momentum_import(self):
-        """main module should not import momentum functions."""
+        """main module should not import momentum direction functions (only compute_atr is allowed)."""
         import inspect
         source = inspect.getsource(main)
-        assert "from momentum import" not in source
+        # compute_atr is now imported for ATR ratio choppy filter voter
         assert "compute_momentum" not in source
         assert "detect_regime" not in source
         assert "compute_mean_reversion_signal" not in source

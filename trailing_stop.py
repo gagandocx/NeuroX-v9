@@ -157,6 +157,12 @@ class CandleCloseManager:
         """
         Check if a new M1 candle has closed (minute changed).
 
+        NOTE: Known limitation - single-minute resolution creates a race window.
+        If the 100ms loop misses a brief minute boundary (e.g., system load
+        delay > 1 second), the signal fires on the following check but may be
+        off by one candle. This is unlikely under normal conditions and
+        acceptable given the 100ms check interval.
+
         Returns:
             True if candle close detected, False otherwise.
         """
@@ -203,6 +209,12 @@ class CandleCloseManager:
         """
         Check if the current forming candle is a high-momentum reversal
         against the trade direction.
+
+        NOTE: Known limitation - reversal detection is unavailable during
+        cold start. _get_recent_bars() must return >= 3 bars for ATR
+        comparison. On Python restart, this takes 3+ minutes of quiet
+        accumulation. During this window, the only protection is the swing
+        SL (which uses EA-provided swing levels as fallback at startup).
 
         Criteria:
         - Large body (>= REVERSAL_CANDLE_BODY_MIN)
@@ -286,7 +298,12 @@ class CandleCloseManager:
             logger.error(f"[CandleClose] Failed to write exit: {e}")
 
     def _fire_modify_sl(self, ticket: str, new_sl: float, reason: str):
-        """Fire a MODIFY_SL signal to move stop loss."""
+        """Fire a MODIFY_SL signal to move stop loss.
+
+        Only marks _be_moved=True after a successful write. If the write
+        fails (exception), _be_moved remains False so the next loop
+        iteration will retry the breakeven move.
+        """
         logger.info(
             f"[CandleClose] MODIFY_SL ticket={ticket} new_sl=${new_sl:.2f} reason={reason}"
         )
@@ -298,8 +315,12 @@ class CandleCloseManager:
                 new_sl=new_sl,
                 reason=reason,
             )
+            # Only mark as moved after successful write
+            with self._lock:
+                self._be_moved = True
         except Exception as e:
             logger.error(f"[CandleClose] Failed to write SL modify: {e}")
+            # _be_moved stays False, will retry on next iteration
 
     def _monitor_loop(self):
         """Background loop: checks price every interval."""
@@ -335,7 +356,6 @@ class CandleCloseManager:
                         self._tracking = False
                     # Priority 3: Breakeven move
                     elif self._check_breakeven(current_price):
-                        self._be_moved = True
                         modify_sl = self._get_be_sl_price()
                         fire_ticket = self._ticket
 

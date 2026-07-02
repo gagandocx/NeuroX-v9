@@ -12,12 +12,16 @@ import signal
 import logging
 from datetime import datetime
 
+import numpy as np
+import pandas as pd
+
 from config import Config
 from bridge import Bridge
 from tick_collector import TickCollector
 from choppy_filter import is_market_choppy
 from swing_levels import compute_swing_sl
 from trailing_stop import CandleCloseManager
+from momentum import compute_atr
 
 logging.basicConfig(
     level=logging.INFO,
@@ -224,7 +228,33 @@ def main():
                 distance = abs(current_price - ea_ema9)
 
                 # Multi-indicator choppy market filter
+                # Compute ATR and variance ratio from completed bars to
+                # activate the ATR-ratio and variance-ratio voters
                 choppy, choppy_reason = False, ""
+                computed_atr = 0.0
+                computed_avg_atr = 0.0
+                computed_variance_ratio = 1.0
+
+                completed_bars = list(tick_collector._completed_bars)
+                if len(completed_bars) >= Config.ATR_RATIO_PERIOD + 1:
+                    bars_df = pd.DataFrame(completed_bars)
+                    computed_atr, computed_avg_atr = compute_atr(
+                        bars_df, period=Config.ATR_RATIO_PERIOD
+                    )
+
+                    # Compute variance ratio from close prices
+                    vr_lookback = Config.REGIME_VARIANCE_RATIO_LOOKBACK
+                    if len(completed_bars) >= vr_lookback + 1:
+                        close_arr = bars_df["Close"].values[-(vr_lookback + 1):]
+                        increments = np.diff(close_arr)
+                        var_increments = np.var(increments)
+                        if var_increments > 0:
+                            n = len(increments)
+                            full_move = close_arr[-1] - close_arr[0]
+                            expected_walk_var = n * var_increments
+                            actual_walk_var = full_move ** 2
+                            computed_variance_ratio = actual_walk_var / expected_walk_var
+
                 if Config.CHOPPY_FILTER_ENABLED:
                     choppy, choppy_reason = is_market_choppy(
                         adx_value=ea_adx,
@@ -232,6 +262,9 @@ def main():
                         bb_upper=ea_bb_upper,
                         bb_lower=ea_bb_lower,
                         current_price=current_price,
+                        current_atr=computed_atr,
+                        avg_atr=computed_avg_atr,
+                        variance_ratio=computed_variance_ratio,
                     )
 
                 if choppy:
@@ -249,9 +282,14 @@ def main():
                     intel_reason = "CANDLE_WAIT"
                 elif can_trade():
                     # No position - fire entry with swing SL
-                    completed_bars = list(tick_collector._completed_bars)
+                    # Use EA-provided swing levels as fallback when Python
+                    # bar buffer has fewer than SWING_SL_LOOKBACK bars
+                    if not completed_bars:
+                        completed_bars = list(tick_collector._completed_bars)
                     swing_sl = compute_swing_sl(
-                        completed_bars, ema_allowed_direction, current_price
+                        completed_bars, ema_allowed_direction, current_price,
+                        ea_swing_high=ea_swing_high,
+                        ea_swing_low=ea_swing_low,
                     )
                     # Convert swing SL to distance
                     sl_distance = abs(current_price - swing_sl)
