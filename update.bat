@@ -245,6 +245,30 @@ if exist "%MT5_EXPERTS%\%STANDALONE_FILE%" (
     echo        [WARNING] %STANDALONE_FILE% not in Experts folder. Skipping compile.
 )
 
+echo.
+
+:: Compile ExportRealTicks script
+if exist "%MT5_SCRIPTS%\%EXPORT_TICKS_FILE%" (
+    set "COMPILE_TARGET=%MT5_SCRIPTS%\%EXPORT_TICKS_FILE%"
+    echo        Compiling: !COMPILE_TARGET!
+    "%METAEDITOR%" /compile:"!COMPILE_TARGET!" /log >nul 2>&1
+    timeout /t 8 /nobreak >nul
+
+    set "LOG_FILE=%MT5_SCRIPTS%\ExportRealTicks.log"
+    if exist "!LOG_FILE!" (
+        findstr /i " error " "!LOG_FILE!" >nul
+        if !errorlevel! equ 0 (
+            echo        [WARNING] %EXPORT_TICKS_FILE% compilation has errors. Check log.
+        ) else (
+            echo        [OK] %EXPORT_TICKS_FILE% compiled successfully.
+        )
+    ) else (
+        echo        [OK] %EXPORT_TICKS_FILE% compile complete.
+    )
+) else (
+    echo        [WARNING] %EXPORT_TICKS_FILE% not in Scripts folder. Skipping compile.
+)
+
 :done
 echo.
 echo ============================================================
