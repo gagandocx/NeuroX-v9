@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Update dashboard to show new strategy info (market filter, EMA distance, swing SL, breakeven, candle close, reversal) and remove old unused info (Named Pipe, Trail Tier, EMA crossover label)",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Add new global variables in NeuroX_Types.mqh for choppy_votes, swing_sl, breakeven_status, reversal_status",
     "2. Update bridge.py write_intelligence() to accept and write new fields (choppy_votes, swing_sl, breakeven_status, reversal_status)",
@@ -27,5 +27,6 @@
   "verification": [
     "python3 -m pytest tests/ --tb=short -q"
   ],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "findings": "403 tests pass, 23 pre-existing failures unchanged (20 in spread_signal/tick_collector/optimizer/performance + 3 in bridge UTF-16 encoding). All 4 intelligence tests pass with new 15-field format. MQL5 code validated by pattern inspection (no MetaEditor available). g_trailStatus variable kept because NeuroX_Position.mqh still writes to it, but the Trail Tier dashboard row was removed."
 }
