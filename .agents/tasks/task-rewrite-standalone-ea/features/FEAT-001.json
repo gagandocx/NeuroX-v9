@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Complete rewrite of NeuroX_Standalone_v9.mq5 to implement the exact same strategy as the Python-derived main EA (main.py + config.py + choppy_filter.py + trailing_stop.py + swing_levels.py), but entirely self-contained in a single MQL5 file with zero Python dependency. The new EA must compute all indicators natively using MT5 built-in functions (iMA, iATR, iADX, iBands) plus manual implementations of Choppiness Index and Variance Ratio.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Replace all input parameters in NeuroX_Standalone_v9.mq5 with new inputs matching config.py values: InpMagicNumber=20250629, InpLotSize=0.10, InpMaxPositions=1, InpCooldownSeconds=1, InpEmergencyLoss=50.0, InpEmaTrendPeriod=50, InpEmaTrendEnabled=true, InpEmaEntryPeriod=9, InpEmaMaxDistance=0.80, InpEmaSlPeriod=60, InpEmaSlEnabled=true, InpEmaSlMinDistance=0.50, InpSwingSlLookback=10, InpSwingSlMinDistance=0.50, InpBreakevenProfitThreshold=5.00, InpBreakevenLockAmount=1.00, InpContractSize=100, InpChoppyFilterEnabled=true, InpMinADXThreshold=20.0, InpChoppinessThreshold=61.8, InpBBWidthSqueezeMult=0.5, InpATRRatioThreshold=0.75, InpVarianceRatioThreshold=0.5, InpRangingFilterAgreement=2, InpReversalEnabled=true, InpReversalBodyMin=0.40, InpReversalBodyRatio=0.70, InpReversalATRMult=1.5, InpShowDashboard=true, InpDashboardScale=110",
     "2. Create indicator handle globals (g_ema9Handle, g_ema50Handle, g_ema60Handle, g_atrHandle, g_adxHandle, g_bbHandle) initialized in OnInit() using iMA(_Symbol,PERIOD_M1,9,...), iMA(_Symbol,PERIOD_M1,50,...), iMA(_Symbol,PERIOD_M1,60,...), iATR(_Symbol,PERIOD_M1,14,...), iADX(_Symbol,PERIOD_M5,14), iBands(_Symbol,PERIOD_M1,20,2,...). Release all handles in OnDeinit().",
@@ -45,5 +45,5 @@
     "Verify no #include statements beyond Trade\\Trade.mqh and Trade\\PositionInfo.mqh"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 8 strategy components implemented and verified. Braces balance (105/105). All input parameter defaults match config.py. No MQL5 compiler available so validation is by inspection only. The file is 1347 lines, single self-contained EA with only Trade/Trade.mqh and Trade/PositionInfo.mqh includes."
 }
