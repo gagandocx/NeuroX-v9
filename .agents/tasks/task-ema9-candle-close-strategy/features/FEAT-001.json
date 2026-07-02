@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Remove EMA 15 crossover logic - use only EMA 9 (price above/below) for direction. Change EMA_MAX_DISTANCE default to $0.80. Add advanced multi-indicator choppy/ranging market filter.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. In config.py: Change EMA_MAX_DISTANCE from 1.00 to 0.80. Remove or comment out EMA_CROSSOVER_FAST/SLOW settings (mark deprecated). Add new config settings for the advanced ranging filter: CHOPPY_FILTER_ENABLED=True, CHOPPINESS_INDEX_PERIOD=14, CHOPPINESS_INDEX_THRESHOLD=61.8, BOLLINGER_BAND_WIDTH_PERIOD=20, BOLLINGER_SQUEEZE_THRESHOLD=0.5, ATR_RATIO_PERIOD=14, ATR_RATIO_RANGING_THRESHOLD=0.75, VARIANCE_RATIO_THRESHOLD=0.5, RANGING_FILTER_AGREEMENT=2 (number of indicators that must agree market is ranging to block). Keep MIN_ADX_THRESHOLD=20.0 as one of the indicators.",
     "2. In main.py: Change the direction logic from 'if ea_ema9 > ea_ema15: BUY' to 'if current_price > ea_ema9: BUY, if current_price < ea_ema9: SELL'. Remove all references to ea_ema15 in the direction determination. The read_ema_from_ea function should still parse ema15 from the file (EA sends it) but main loop ignores it for direction. Update get_ema_trend_label_from_ea to show 'P>EMA9 BUY' / 'P<EMA9 SELL' instead of '9>15 BUY' / '9<15 SELL'.",
@@ -26,5 +26,5 @@
     "python3 -m pytest tests/test_ema_trend.py tests/test_main_logic.py tests/test_choppy_filter.py -v --tb=short"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 98 targeted tests pass. Full suite shows 20 pre-existing failures (test_spread_signal.py, test_tick_collector.py, test_performance.py, test_optimizer.py) unrelated to changes. Direction logic now uses price vs EMA9 instead of EMA crossover. Labels changed from 9>15/9<15 to P>EMA9/P<EMA9. New choppy_filter.py uses voting system with 5 indicators. Bridge protocol extended to 10 fields with backward compatibility."
 }
