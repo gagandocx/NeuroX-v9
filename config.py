@@ -87,6 +87,24 @@ class Config:
     EMA_MASTER_PERIOD = 9             # EMA period for master trend (price vs EMA)
     EMA_MASTER_ENABLED = True         # Enable/disable EMA master trend filter
 
+    # ═══════════════════════════════════════════════════════════════════
+    # 50 EMA Trend Filter (MAIN TREND DIRECTION)
+    # Price must be on the same side of BOTH 50 EMA and 9 EMA to trade.
+    # Above both = BUY only, below both = SELL only, conflicting = no trade.
+    # Period is configurable (50, 100, 200) via EA input InpEmaTrendPeriod.
+    # ═══════════════════════════════════════════════════════════════════
+    EMA_TREND_PERIOD = 50             # Main trend EMA period (configurable in EA inputs)
+    EMA_TREND_ENABLED = True          # Enable 50 EMA trend filter
+
+    # ═══════════════════════════════════════════════════════════════════
+    # EMA-Based Stop Loss (replaces swing high/low SL)
+    # SL is placed at the 60 EMA level instead of swing points.
+    # Breakeven trailing ($5 profit moves SL to entry + $1) stays the same.
+    # ═══════════════════════════════════════════════════════════════════
+    EMA_SL_PERIOD = 60                # EMA period for SL placement
+    EMA_SL_ENABLED = True             # Use EMA for SL (if False, uses swing high/low)
+    EMA_SL_MIN_DISTANCE = 0.50        # Minimum SL distance from entry ($)
+
     # EMA Crossover (DEPRECATED - direction now uses price vs EMA 9 only)
     # Kept for backward compatibility with EA bridge protocol
     EMA_CROSSOVER_FAST = 9            # (deprecated) Fast EMA period

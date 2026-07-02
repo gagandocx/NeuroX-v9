@@ -166,7 +166,7 @@ class TestBridgeIntelligence:
         assert intel_path.exists()
 
     def test_write_intelligence_format(self, tmp_bridge):
-        """Intelligence file should be pipe-delimited with exactly 15 fields."""
+        """Intelligence file should be pipe-delimited with exactly 16 fields."""
         tmp_bridge.write_intelligence(
             regime="RANGING",
             atr_value=0.35,
@@ -183,12 +183,13 @@ class TestBridgeIntelligence:
             swing_sl="$2648.50",
             breakeven_status="INACTIVE",
             reversal_status="CLEAR",
+            ema50_trend="BULLISH (2640.00)",
         )
 
         intel_path = tmp_bridge.common_path / Config.INTELLIGENCE_FILE
         content = intel_path.read_text(encoding="ascii").strip()
         fields = content.split("|")
-        assert len(fields) == 15
+        assert len(fields) == 16
 
     def test_write_intelligence_overwrites(self, tmp_bridge):
         """Intelligence file should be overwritten each call, not appended."""

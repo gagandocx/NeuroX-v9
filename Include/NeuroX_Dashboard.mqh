@@ -236,6 +236,41 @@ void UpdateDashboard()
     // ═══════════════════════════════════════════
     DashSeparator(y, "STRATEGY");
 
+    // 50 EMA Trend Direction (main trend filter)
+    string ema50Str = g_intelEma50Trend;
+    color ema50Clr = CLR_NEUTRAL;
+    if(StringFind(ema50Str, "BULLISH") >= 0)       ema50Clr = CLR_POSITIVE;
+    else if(StringFind(ema50Str, "BEARISH") >= 0)  ema50Clr = CLR_NEGATIVE;
+    else if(StringFind(ema50Str, "CONFLICTING") >= 0) ema50Clr = clrOrange;
+    else if(StringFind(ema50Str, "WARMUP") >= 0)   ema50Clr = clrYellow;
+    if(StringLen(ema50Str) == 0) ema50Str = "---";
+    DashRow(y, "st_ema50", IntegerToString(InpEmaTrendPeriod) + " EMA Trend:", ema50Str, ema50Clr);
+
+    // EMA Alignment Status
+    string alignStr = "";
+    color alignClr = CLR_NEUTRAL;
+    if(StringFind(ema50Str, "BULLISH") >= 0 || StringFind(ema50Str, "BEARISH") >= 0)
+    {
+        alignStr = "ALIGNED";
+        alignClr = CLR_POSITIVE;
+    }
+    else if(StringFind(ema50Str, "CONFLICTING") >= 0)
+    {
+        alignStr = "CONFLICTING";
+        alignClr = clrOrange;
+    }
+    else if(StringFind(ema50Str, "DISABLED") >= 0)
+    {
+        alignStr = "FILTER OFF";
+        alignClr = CLR_NEUTRAL;
+    }
+    else
+    {
+        alignStr = "WAITING";
+        alignClr = clrYellow;
+    }
+    DashRow(y, "st_align", "EMA Alignment:", alignStr, alignClr);
+
     // EMA 9 Direction (price vs EMA 9)
     string emaStr = g_intelEmaTrend;
     color emaClr = CLR_NEUTRAL;
@@ -276,12 +311,12 @@ void UpdateDashboard()
         emaDistStr = "---";
     DashRow(y, "st_dist", "EMA Distance:", emaDistStr, emaDistClr);
 
-    // Swing SL level
+    // SL Level (EMA-based or swing)
     string swingStr = g_intelSwingSL;
     color swingClr = CLR_NEUTRAL;
     if(StringLen(swingStr) == 0 || swingStr == "---") { swingStr = "---"; swingClr = CLR_NEUTRAL; }
     else swingClr = CLR_ACCENT;
-    DashRow(y, "st_swing", "Swing SL:", swingStr, swingClr);
+    DashRow(y, "st_swing", "SL Level:", swingStr, swingClr);
 
     // Breakeven status
     string beStr = g_intelBreakevenStatus;

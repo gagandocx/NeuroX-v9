@@ -217,6 +217,7 @@ string         g_intelChoppyVotes  = "";
 string         g_intelSwingSL      = "";
 string         g_intelBreakevenStatus = "";
 string         g_intelReversalStatus  = "";
+string         g_intelEma50Trend   = "";
 
 // Duplicate signal execution guard
 datetime       g_lastExecutedSignalTime = 0;

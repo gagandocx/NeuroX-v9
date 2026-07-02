@@ -68,6 +68,9 @@ input double   InpFixedSL          = 2.00;      // Fixed SL in $ (0=use signal)
 input int      InpEmaFastPeriod    = 9;         // EMA Fast period (crossover)
 input int      InpEmaSlowPeriod    = 15;        // EMA Slow period (kept for backward compat - direction is now price vs EMA 9)
 input double   InpEmaMaxDistance   = 0.80;      // EMA max distance ($) - block trades when overextended
+input int      InpEmaTrendPeriod   = 50;        // EMA Trend Period (main direction filter, e.g. 50/100/200)
+input bool     InpEmaTrendEnabled  = true;      // Enable EMA trend filter (50 EMA main direction)
+input int      InpEmaSlPeriod      = 60;        // EMA SL Period (SL placed at this EMA level)
 input int      InpMinADX           = 20;        // Min ADX to allow trading (below = ranging/choppy)
 input ENUM_TIMEFRAMES InpADXTimeframe = PERIOD_M5; // ADX timeframe (M5 recommended)
 input double   InpDynamicTPThreshold = 9990.0;  // TP pips threshold for dynamic mode

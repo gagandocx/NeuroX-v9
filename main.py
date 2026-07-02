@@ -57,14 +57,14 @@ def read_ema_from_ea(bridge) -> tuple:
 
     The EA writes EMA values from the live chart to a shared file every tick,
     giving Python instant access to accurate EMA without warmup.
-    Format: ema9|ema15|max_distance|open_positions|adx_value|swing_high|swing_low|bb_upper|bb_lower|choppiness
+    Format: ema9|ema15|max_distance|open_positions|adx_value|swing_high|swing_low|bb_upper|bb_lower|choppiness|ema50|ema_sl
 
     Returns:
         (ema9, ema15, max_distance, open_positions, adx_value,
-         swing_high, swing_low, bb_upper, bb_lower, choppiness) or
+         swing_high, swing_low, bb_upper, bb_lower, choppiness, ema50, ema_sl) or
         defaults if unavailable.
     """
-    defaults = (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    defaults = (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     try:
         ema_path = bridge.common_path / Config.EMA_FILE
         if not ema_path.exists():
@@ -83,8 +83,10 @@ def read_ema_from_ea(bridge) -> tuple:
         bb_upper = float(parts[7]) if len(parts) >= 8 else 0.0
         bb_lower = float(parts[8]) if len(parts) >= 9 else 0.0
         choppiness = float(parts[9]) if len(parts) >= 10 else 0.0
+        ema50 = float(parts[10]) if len(parts) >= 11 else 0.0
+        ema_sl = float(parts[11]) if len(parts) >= 12 else 0.0
         return (ema9, ema15, max_distance, open_positions, adx_value,
-                swing_high, swing_low, bb_upper, bb_lower, choppiness)
+                swing_high, swing_low, bb_upper, bb_lower, choppiness, ema50, ema_sl)
     except Exception:
         return defaults
 
@@ -209,16 +211,45 @@ def main():
 
             # 3. Read EMA from EA file (includes open position count)
             ea_ema9, ea_ema15, ea_max_distance, ea_open_positions, ea_adx, \
-                ea_swing_high, ea_swing_low, ea_bb_upper, ea_bb_lower, ea_choppiness = read_ema_from_ea(bridge)
+                ea_swing_high, ea_swing_low, ea_bb_upper, ea_bb_lower, ea_choppiness, \
+                ea_ema50, ea_ema_sl = read_ema_from_ea(bridge)
 
-            # Determine EMA direction via price vs EMA 9
-            # Only BUY when price > EMA 9, only SELL when price < EMA 9
+            # Determine EMA direction via 50 EMA trend filter + price vs EMA 9
+            # 50 EMA is the MAIN TREND SETTER:
+            #   - Price above 50 EMA AND 9 EMA = ONLY BUY trades allowed
+            #   - Price below 50 EMA AND 9 EMA = ONLY SELL trades allowed
+            #   - If price is above one but below the other = NO TRADE (conflicting)
+            # 9 EMA still sets the entry range (within $0.80)
             ema_allowed_direction = None
+            ema_trend_status = "DISABLED"  # For dashboard: BULLISH, BEARISH, CONFLICTING, DISABLED, WARMUP
             if ea_ema9 > 0.0 and current_price > 0.0:
-                if current_price > ea_ema9:
-                    ema_allowed_direction = "BUY"
-                elif current_price < ea_ema9:
-                    ema_allowed_direction = "SELL"
+                if Config.EMA_TREND_ENABLED and ea_ema50 > 0.0:
+                    # 50 EMA trend filter active
+                    price_above_ema50 = current_price > ea_ema50
+                    price_above_ema9 = current_price > ea_ema9
+                    price_below_ema50 = current_price < ea_ema50
+                    price_below_ema9 = current_price < ea_ema9
+
+                    if price_above_ema50 and price_above_ema9:
+                        ema_allowed_direction = "BUY"
+                        ema_trend_status = "BULLISH"
+                    elif price_below_ema50 and price_below_ema9:
+                        ema_allowed_direction = "SELL"
+                        ema_trend_status = "BEARISH"
+                    else:
+                        # Price between EMAs - conflicting signal, no trade
+                        ema_allowed_direction = None
+                        ema_trend_status = "CONFLICTING"
+                else:
+                    # Trend filter disabled or EMA50 not available yet - use EMA9 only
+                    if ea_ema50 <= 0.0 and Config.EMA_TREND_ENABLED:
+                        ema_trend_status = "WARMUP"
+                    else:
+                        ema_trend_status = "DISABLED"
+                    if current_price > ea_ema9:
+                        ema_allowed_direction = "BUY"
+                    elif current_price < ea_ema9:
+                        ema_allowed_direction = "SELL"
 
             # 4. Signal logic: single position, candle-close exit cycle
             intel_decision = "WAITING"
@@ -284,18 +315,25 @@ def main():
                     intel_decision = "HOLDING"
                     intel_reason = "CANDLE_WAIT"
                 elif can_trade():
-                    # No position - fire entry with swing SL
-                    # Use EA-provided swing levels as fallback when Python
-                    # bar buffer has fewer than SWING_SL_LOOKBACK bars
-                    if not completed_bars:
-                        completed_bars = list(tick_collector._completed_bars)
-                    swing_sl = compute_swing_sl(
-                        completed_bars, ema_allowed_direction, current_price,
-                        ea_swing_high=ea_swing_high,
-                        ea_swing_low=ea_swing_low,
-                    )
-                    # Convert swing SL to distance
-                    sl_distance = abs(current_price - swing_sl)
+                    # No position - fire entry with SL at 60 EMA (or swing fallback)
+                    # EMA-based SL: SL placed at the 60 EMA level
+                    # Breakeven trailing ($5 profit moves SL to entry + $1) stays the same
+                    if Config.EMA_SL_ENABLED and ea_ema_sl > 0.0:
+                        # Use 60 EMA as SL level
+                        sl_distance = abs(current_price - ea_ema_sl)
+                        # Enforce minimum SL distance
+                        if sl_distance < Config.EMA_SL_MIN_DISTANCE:
+                            sl_distance = Config.EMA_SL_MIN_DISTANCE
+                    else:
+                        # Fallback: Use swing high/low for SL
+                        if not completed_bars:
+                            completed_bars = list(tick_collector._completed_bars)
+                        swing_sl = compute_swing_sl(
+                            completed_bars, ema_allowed_direction, current_price,
+                            ea_swing_high=ea_swing_high,
+                            ea_swing_low=ea_swing_low,
+                        )
+                        sl_distance = abs(current_price - swing_sl)
 
                     fire_signal(
                         bridge, ema_allowed_direction, current_price,
@@ -317,8 +355,12 @@ def main():
                 intel_decision = "WAITING"
                 intel_reason = "NO_TICK"
             else:
-                intel_decision = "WAITING"
-                intel_reason = "FLAT"
+                if ema_trend_status == "CONFLICTING":
+                    intel_decision = "FILTERED"
+                    intel_reason = "EMA_CONFLICTING"
+                else:
+                    intel_decision = "WAITING"
+                    intel_reason = "FLAT"
 
             # Check if candle close manager has closed the position
             if candle_mgr.close_fired:
@@ -347,11 +389,18 @@ def main():
                 dist = abs(current_price - ea_ema9)
                 ema_distance_str = f"${dist:.2f} / ${ea_max_distance:.2f}"
 
-            # Swing SL for dashboard
+            # 50 EMA trend for dashboard
+            ema50_trend_str = ema_trend_status
+            if ea_ema50 > 0.0:
+                ema50_trend_str = f"{ema_trend_status} ({ea_ema50:.2f})"
+
+            # Swing SL / EMA SL for dashboard
             swing_sl_str = ""
             if candle_mgr.is_tracking and hasattr(candle_mgr, '_entry_price'):
-                # Show the swing SL that was computed at entry
-                swing_sl_str = "ACTIVE"
+                if Config.EMA_SL_ENABLED and ea_ema_sl > 0.0:
+                    swing_sl_str = f"EMA{Config.EMA_SL_PERIOD} ${ea_ema_sl:.2f}"
+                else:
+                    swing_sl_str = "SWING ACTIVE"
             else:
                 swing_sl_str = "---"
 
@@ -375,6 +424,7 @@ def main():
                 swing_sl=swing_sl_str,
                 breakeven_status=be_status_str,
                 reversal_status=reversal_str,
+                ema50_trend=ema50_trend_str,
             )
 
             # 6. Sleep 100ms

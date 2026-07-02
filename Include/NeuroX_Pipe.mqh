@@ -593,6 +593,8 @@ void WriteMT5Heartbeat()
     double ema9_buf[1], ema15_buf[1];
     static int ema9_handle = INVALID_HANDLE;
     static int ema15_handle = INVALID_HANDLE;
+    static int ema_trend_handle = INVALID_HANDLE;
+    static int ema_sl_handle = INVALID_HANDLE;
     static int adx_handle = INVALID_HANDLE;
     static int bb_handle = INVALID_HANDLE;
     static int chop_atr_handle = INVALID_HANDLE;
@@ -602,6 +604,10 @@ void WriteMT5Heartbeat()
         ema9_handle = iMA(_Symbol, PERIOD_M1, InpEmaFastPeriod, 0, MODE_EMA, PRICE_CLOSE);
     if(ema15_handle == INVALID_HANDLE)
         ema15_handle = iMA(_Symbol, PERIOD_M1, InpEmaSlowPeriod, 0, MODE_EMA, PRICE_CLOSE);
+    if(ema_trend_handle == INVALID_HANDLE)
+        ema_trend_handle = iMA(_Symbol, PERIOD_M1, InpEmaTrendPeriod, 0, MODE_EMA, PRICE_CLOSE);
+    if(ema_sl_handle == INVALID_HANDLE)
+        ema_sl_handle = iMA(_Symbol, PERIOD_M1, InpEmaSlPeriod, 0, MODE_EMA, PRICE_CLOSE);
     if(adx_handle == INVALID_HANDLE)
         adx_handle = iADX(_Symbol, InpADXTimeframe, 14);
     if(bb_handle == INVALID_HANDLE)
@@ -612,6 +618,7 @@ void WriteMT5Heartbeat()
     if(!ema_debug_logged)
     {
         Print("[NeuroX] EMA init: ema9_handle=", ema9_handle, " ema15_handle=", ema15_handle,
+              " ema_trend_handle=", ema_trend_handle, " ema_sl_handle=", ema_sl_handle,
               " adx_handle=", adx_handle, " bb_handle=", bb_handle,
               " chop_atr_handle=", chop_atr_handle);
     }
@@ -620,6 +627,18 @@ void WriteMT5Heartbeat()
     {
         int res9 = CopyBuffer(ema9_handle, 0, 0, 1, ema9_buf);
         int res15 = CopyBuffer(ema15_handle, 0, 0, 1, ema15_buf);
+
+        // Read EMA trend (50 EMA by default, configurable via InpEmaTrendPeriod)
+        double ema_trend_buf[1];
+        ema_trend_buf[0] = 0.0;
+        if(ema_trend_handle != INVALID_HANDLE)
+            CopyBuffer(ema_trend_handle, 0, 0, 1, ema_trend_buf);
+
+        // Read EMA SL (60 EMA by default, configurable via InpEmaSlPeriod)
+        double ema_sl_buf[1];
+        ema_sl_buf[0] = 0.0;
+        if(ema_sl_handle != INVALID_HANDLE)
+            CopyBuffer(ema_sl_handle, 0, 0, 1, ema_sl_buf);
         
         // Read ADX main line (buffer 0)
         double adx_buf[1];
@@ -683,13 +702,14 @@ void WriteMT5Heartbeat()
         {
             Print("[NeuroX] EMA copy: res9=", res9, " res15=", res15,
                   " val9=", ema9_buf[0], " val15=", ema15_buf[0],
-                  " adx=", adx_buf[0], " chop=", choppiness_value);
+                  " adx=", adx_buf[0], " chop=", choppiness_value,
+                  " ema_trend=", ema_trend_buf[0], " ema_sl=", ema_sl_buf[0]);
             ema_debug_logged = true;
         }
         
         if(res9 == 1 && res15 == 1)
         {
-            // Format: ema9|ema15|max_distance|open_positions|adx|swing_high|swing_low|bb_upper|bb_lower|choppiness
+            // Format: ema9|ema15|max_distance|open_positions|adx|swing_high|swing_low|bb_upper|bb_lower|choppiness|ema50|ema_sl
             int emaFile = FileOpen("neurox_v9_ema.txt",
                                    FILE_WRITE | FILE_TXT | FILE_COMMON);
             if(emaFile != INVALID_HANDLE)
@@ -704,7 +724,9 @@ void WriteMT5Heartbeat()
                     DoubleToString(swing_low, 2) + "|" +
                     DoubleToString(bb_upper_buf[0], 2) + "|" +
                     DoubleToString(bb_lower_buf[0], 2) + "|" +
-                    DoubleToString(choppiness_value, 2));
+                    DoubleToString(choppiness_value, 2) + "|" +
+                    DoubleToString(ema_trend_buf[0], 2) + "|" +
+                    DoubleToString(ema_sl_buf[0], 2));
                 FileClose(emaFile);
             }
         }

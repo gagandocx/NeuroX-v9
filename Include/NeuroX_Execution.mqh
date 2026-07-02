@@ -757,7 +757,7 @@ void ReadIntelligenceFile()
         FileClose(fileHandle);
         if(StringLen(line) == 0) return;
 
-        // Parse pipe-delimited: regime|atr_value|atr_pass|tick_pct|tick_dir|persistence_count|persistence_dir|strategy|decision|reason|ema_trend|choppy_votes|swing_sl|breakeven_status|reversal_status
+        // Parse pipe-delimited: regime|atr_value|atr_pass|tick_pct|tick_dir|persistence_count|persistence_dir|strategy|decision|reason|ema_trend|choppy_votes|swing_sl|breakeven_status|reversal_status|ema50_trend
         string fields[];
         int count = StringSplit(line, '|', fields);
         if(count >= 10)
@@ -777,6 +777,7 @@ void ReadIntelligenceFile()
             g_intelSwingSL         = (count >= 13) ? fields[12] : "";
             g_intelBreakevenStatus = (count >= 14) ? fields[13] : "";
             g_intelReversalStatus  = (count >= 15) ? fields[14] : "";
+            g_intelEma50Trend      = (count >= 16) ? fields[15] : "";
         }
     }
     else
