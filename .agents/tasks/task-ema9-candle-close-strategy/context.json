@@ -1,0 +1,31 @@
+{
+  "project_type": "MQL5 Expert Advisor + Python trading system for XAUUSD M1 scalping",
+  "language": "Python + MQL5",
+  "build_system": "pip for Python, MetaEditor for EA (not available in sandbox)",
+  "test_framework": "pytest with tests/ folder",
+  "build_command": "python3 -m pytest tests/ --tb=short -q --ignore=tests/test_bridge.py",
+  "test_command": "python3 -m pytest tests/ --tb=short -q --ignore=tests/test_bridge.py",
+  "verification_instructions": "Run pytest on the tests/ folder. EA MQL5 changes are validated by syntax review only (no MetaEditor available).",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pip install -r requirements.txt (numpy, pandas, pytest)",
+  "environment_constraints": "No MetaEditor available for MQL5 compilation. Python 3.9 available. 20 pre-existing test failures in test_bridge.py, test_spread_signal.py, test_tick_collector.py, test_performance.py (encoding issues, unrelated).",
+  "contribution_requirements": "No CONTRIBUTING.md. Changes must maintain EA<->Python file bridge protocol compatibility.",
+  "key_patterns": "Python main.py reads EMA values from EA file (neurox_v9_ema.txt), determines direction, fires signals via bridge.py. EA writes ema9|ema15|max_distance|open_positions|adx to the file. Config.py holds all settings. EA manages trailing stops in NeuroX_Position.mqh with 4-tier progressive system. Tests use pytest fixtures, tmp_path for bridge tests.",
+  "relevant_files": [
+    "main.py",
+    "config.py",
+    "bridge.py",
+    "trailing_stop.py",
+    "momentum.py",
+    "tick_collector.py",
+    "NeuroX_EA_v9.mq5",
+    "Include/NeuroX_Position.mqh",
+    "Include/NeuroX_Pipe.mqh",
+    "Include/NeuroX_Types.mqh",
+    "Include/NeuroX_Execution.mqh",
+    "tests/test_ema_trend.py",
+    "tests/test_main_logic.py",
+    "tests/test_momentum.py"
+  ],
+  "directory_structure": "Root: main.py (entry), config.py (settings), bridge.py (signal I/O), momentum.py (indicators), trailing_stop.py (Python trailing), tick_collector.py (price reader). Include/: MQL5 modules. tests/: pytest tests."
+}

@@ -66,8 +66,8 @@ input double   InpDefaultLotSize   = 0.10;      // Default lot (if signal=0)
 input double   InpMinConfidence    = 0.10;      // Minimum confidence to trade
 input double   InpFixedSL          = 2.00;      // Fixed SL in $ (0=use signal)
 input int      InpEmaFastPeriod    = 9;         // EMA Fast period (crossover)
-input int      InpEmaSlowPeriod    = 15;        // EMA Slow period (crossover)
-input double   InpEmaMaxDistance   = 1.00;      // EMA max distance ($) - block trades when overextended
+input int      InpEmaSlowPeriod    = 15;        // EMA Slow period (kept for backward compat - direction is now price vs EMA 9)
+input double   InpEmaMaxDistance   = 0.80;      // EMA max distance ($) - block trades when overextended
 input int      InpMinADX           = 20;        // Min ADX to allow trading (below = ranging/choppy)
 input ENUM_TIMEFRAMES InpADXTimeframe = PERIOD_M5; // ADX timeframe (M5 recommended)
 input double   InpDynamicTPThreshold = 9990.0;  // TP pips threshold for dynamic mode

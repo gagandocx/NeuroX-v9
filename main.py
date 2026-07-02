@@ -14,6 +14,7 @@ from datetime import datetime
 from config import Config
 from bridge import Bridge
 from tick_collector import TickCollector
+from choppy_filter import is_market_choppy
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,52 +46,60 @@ def can_trade() -> bool:
 
 
 def read_ema_from_ea(bridge) -> tuple:
-    """Read EMA 9, EMA 15, max_distance, open positions, and ADX from EA.
+    """Read EMA 9, EMA 15, max_distance, open positions, ADX, and additional indicators from EA.
 
     The EA writes EMA values from the live chart to a shared file every tick,
     giving Python instant access to accurate EMA without warmup.
-    Format: ema9|ema15|max_distance|open_positions|adx_value
+    Format: ema9|ema15|max_distance|open_positions|adx_value|swing_high|swing_low|bb_upper|bb_lower|choppiness
 
     Returns:
-        (ema9, ema15, max_distance, open_positions, adx_value) or
-        (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0) if unavailable.
+        (ema9, ema15, max_distance, open_positions, adx_value,
+         swing_high, swing_low, bb_upper, bb_lower, choppiness) or
+        defaults if unavailable.
     """
+    defaults = (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     try:
         ema_path = bridge.common_path / Config.EMA_FILE
         if not ema_path.exists():
-            return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
+            return defaults
         content = ema_path.read_text(encoding="utf-16").strip()
         if "|" not in content:
-            return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
+            return defaults
         parts = content.split("|")
         ema9 = float(parts[0])
         ema15 = float(parts[1])
         max_distance = float(parts[2]) if len(parts) >= 3 else Config.EMA_MAX_DISTANCE
         open_positions = int(parts[3]) if len(parts) >= 4 else 0
         adx_value = float(parts[4]) if len(parts) >= 5 else 100.0
-        return (ema9, ema15, max_distance, open_positions, adx_value)
+        swing_high = float(parts[5]) if len(parts) >= 6 else 0.0
+        swing_low = float(parts[6]) if len(parts) >= 7 else 0.0
+        bb_upper = float(parts[7]) if len(parts) >= 8 else 0.0
+        bb_lower = float(parts[8]) if len(parts) >= 9 else 0.0
+        choppiness = float(parts[9]) if len(parts) >= 10 else 0.0
+        return (ema9, ema15, max_distance, open_positions, adx_value,
+                swing_high, swing_low, bb_upper, bb_lower, choppiness)
     except Exception:
-        return (0.0, 0.0, Config.EMA_MAX_DISTANCE, 0, 100.0)
+        return defaults
 
 
 def get_ema_trend_label_from_ea(ea_ema9: float, ea_ema15: float, current_price: float) -> str:
-    """Get EMA crossover trend label using EA-provided EMA values.
+    """Get EMA trend label using price vs EMA 9 direction.
 
     Args:
         ea_ema9: EMA 9 value from EA file.
-        ea_ema15: EMA 15 value from EA file.
+        ea_ema15: EMA 15 value from EA file (kept for compatibility, unused for direction).
         current_price: Current tick price.
 
     Returns:
-        Label like '9>15 BUY $0.45' or '9<15 SELL $1.50' or 'WARMUP'.
+        Label like 'P>EMA9 BUY $0.45' or 'P<EMA9 SELL $1.50' or 'WARMUP'.
     """
-    if ea_ema9 <= 0 or ea_ema15 <= 0:
+    if ea_ema9 <= 0:
         return "WARMUP"
     distance = abs(current_price - ea_ema9)
-    if ea_ema9 > ea_ema15:
-        return f"9>15 BUY ${distance:.2f}"
-    elif ea_ema9 < ea_ema15:
-        return f"9<15 SELL ${distance:.2f}"
+    if current_price > ea_ema9:
+        return f"P>EMA9 BUY ${distance:.2f}"
+    elif current_price < ea_ema9:
+        return f"P<EMA9 SELL ${distance:.2f}"
     else:
         return "FLAT"
 
@@ -158,16 +167,17 @@ def main():
             current_price = tick_collector.last_price
 
             # 3. Read EMA from EA file (includes open position count)
-            ea_ema9, ea_ema15, ea_max_distance, ea_open_positions, ea_adx = read_ema_from_ea(bridge)
+            ea_ema9, ea_ema15, ea_max_distance, ea_open_positions, ea_adx, \
+                ea_swing_high, ea_swing_low, ea_bb_upper, ea_bb_lower, ea_choppiness = read_ema_from_ea(bridge)
 
-            # Determine EMA direction via crossover (9 vs 15)
-            # Only BUY when EMA 9 > EMA 15, only SELL when EMA 15 > EMA 9
-            # This ensures no two-side trades at the same time
+            # Determine EMA direction via price vs EMA 9
+            # Only BUY when price > EMA 9, only SELL when price < EMA 9
+            # This ensures directional alignment with the 9 EMA trend
             ema_allowed_direction = None
-            if ea_ema9 > 0.0 and ea_ema15 > 0.0:
-                if ea_ema9 > ea_ema15:
+            if ea_ema9 > 0.0 and current_price > 0.0:
+                if current_price > ea_ema9:
                     ema_allowed_direction = "BUY"
-                elif ea_ema9 < ea_ema15:
+                elif current_price < ea_ema9:
                     ema_allowed_direction = "SELL"
 
             # 4. Signal logic: momentum-based scaling using EA's actual position count
@@ -176,9 +186,21 @@ def main():
 
             if ema_allowed_direction is not None and current_price > 0.0:
                 distance = abs(current_price - ea_ema9)
-                if ea_adx < Config.MIN_ADX_THRESHOLD:
+
+                # Multi-indicator choppy market filter
+                choppy, choppy_reason = False, ""
+                if Config.CHOPPY_FILTER_ENABLED:
+                    choppy, choppy_reason = is_market_choppy(
+                        adx_value=ea_adx,
+                        choppiness_index=ea_choppiness,
+                        bb_upper=ea_bb_upper,
+                        bb_lower=ea_bb_lower,
+                        current_price=current_price,
+                    )
+
+                if choppy:
                     intel_decision = "FILTERED"
-                    intel_reason = "ADX_RANGING"
+                    intel_reason = f"CHOPPY_MARKET:{choppy_reason}"
                 elif distance > ea_max_distance:
                     intel_decision = "FILTERED"
                     intel_reason = "EMA_DISTANCE"
@@ -206,7 +228,7 @@ def main():
                 else:
                     intel_decision = "COOLDOWN"
                     intel_reason = "COOLDOWN"
-            elif current_price > 0.0 and (ea_ema9 <= 0.0 or ea_ema15 <= 0.0):
+            elif current_price > 0.0 and ea_ema9 <= 0.0:
                 intel_decision = "WAITING"
                 intel_reason = "NEED_EA_EMA"
             elif current_price <= 0.0:

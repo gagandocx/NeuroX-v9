@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Remove EMA 15 crossover logic - use only EMA 9 (price above/below) for direction. Change EMA_MAX_DISTANCE default to $0.80. Add advanced multi-indicator choppy/ranging market filter.",
+  "status": "in_progress",
+  "steps": [
+    "1. In config.py: Change EMA_MAX_DISTANCE from 1.00 to 0.80. Remove or comment out EMA_CROSSOVER_FAST/SLOW settings (mark deprecated). Add new config settings for the advanced ranging filter: CHOPPY_FILTER_ENABLED=True, CHOPPINESS_INDEX_PERIOD=14, CHOPPINESS_INDEX_THRESHOLD=61.8, BOLLINGER_BAND_WIDTH_PERIOD=20, BOLLINGER_SQUEEZE_THRESHOLD=0.5, ATR_RATIO_PERIOD=14, ATR_RATIO_RANGING_THRESHOLD=0.75, VARIANCE_RATIO_THRESHOLD=0.5, RANGING_FILTER_AGREEMENT=2 (number of indicators that must agree market is ranging to block). Keep MIN_ADX_THRESHOLD=20.0 as one of the indicators.",
+    "2. In main.py: Change the direction logic from 'if ea_ema9 > ea_ema15: BUY' to 'if current_price > ea_ema9: BUY, if current_price < ea_ema9: SELL'. Remove all references to ea_ema15 in the direction determination. The read_ema_from_ea function should still parse ema15 from the file (EA sends it) but main loop ignores it for direction. Update get_ema_trend_label_from_ea to show 'P>EMA9 BUY' / 'P<EMA9 SELL' instead of '9>15 BUY' / '9<15 SELL'.",
+    "3. Create a new file choppy_filter.py that implements a comprehensive ranging/choppy market detection system. It should have a function `is_market_choppy(prices_df, current_atr, avg_atr, adx_value) -> (bool, str)` that returns (True, reason_string) if market is choppy. Internally it computes: (a) ADX < threshold (already have), (b) Choppiness Index (using ATR and range), (c) Bollinger Band Width squeeze detection, (d) ATR ratio (current/average), (e) Variance ratio test. If RANGING_FILTER_AGREEMENT or more indicators agree market is ranging, return True. This is the 'world's best' choppy filter - multiple uncorrelated indicators voting.",
+    "4. In main.py: Import and call is_market_choppy() in the signal logic. If choppy, set intel_decision='FILTERED' and intel_reason='CHOPPY_MARKET'. This replaces the simple ADX-only check. The ADX check becomes part of the multi-indicator vote inside choppy_filter.py.",
+    "5. In NeuroX_EA_v9.mq5: Change InpEmaMaxDistance default from 1.00 to 0.80. Add a comment noting InpEmaSlowPeriod is kept for backward compatibility but direction is now price vs EMA 9.",
+    "6. In Include/NeuroX_Pipe.mqh: The EA still writes ema9|ema15|max_distance|open_positions|adx - no change needed to the bridge protocol. But add additional data fields: write swing_high|swing_low|bb_upper|bb_lower|choppiness_index values appended after adx. Update the file format to: ema9|ema15|max_distance|open_positions|adx|swing_high|swing_low|bb_upper|bb_lower|choppiness. Add Bollinger Bands and Choppiness Index indicator handles.",
+    "7. In main.py: Update read_ema_from_ea() to parse the new fields (swing_high, swing_low, bb_upper, bb_lower, choppiness) from positions 5-9 of the pipe-delimited file. Provide defaults if fields are missing (backward compat).",
+    "8. Update tests/test_ema_trend.py and tests/test_main_logic.py: Update TestGetEmaTrendLabelFromEa to expect 'P>EMA9 BUY' / 'P<EMA9 SELL' labels instead of '9>15'. Update TestNoRemovedLogic. Add new tests for choppy_filter.py: test that multiple indicators agreeing returns choppy=True, test that trending market returns choppy=False, test edge cases.",
+    "9. Create tests/test_choppy_filter.py with tests for the new choppy filter module."
+  ],
+  "acceptance_criteria": [
+    "Direction is determined by price vs EMA 9 (not EMA crossover): price > ema9 = BUY, price < ema9 = SELL",
+    "EMA_MAX_DISTANCE default is 0.80 in both config.py and EA input",
+    "Choppy market filter blocks trades when multiple indicators detect ranging conditions",
+    "All existing tests pass (adjusted for new direction logic)",
+    "New tests for choppy_filter.py pass",
+    "Bridge protocol backward compatible (still parses old 5-field format)"
+  ],
+  "verification": [
+    "python3 -m pytest tests/test_ema_trend.py tests/test_main_logic.py tests/test_choppy_filter.py -v --tb=short"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

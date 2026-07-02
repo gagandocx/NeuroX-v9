@@ -65,19 +65,20 @@ class Config:
     # ═══════════════════════════════════════════════════════════════════
     # ═══ CHANGE THIS TO ADJUST HOW FAR FROM EMA 9 ENTRIES ARE ALLOWED ═══
     # ═══════════════════════════════════════════════════════════════════
-    EMA_MAX_DISTANCE = 1.00    # Only enter within $1.00 of EMA 9 (increase = more trades, decrease = tighter entries)
+    EMA_MAX_DISTANCE = 0.80    # Only enter within $0.80 of EMA 9 (increase = more trades, decrease = tighter entries)
     # ═══════════════════════════════════════════════════════════════════
 
     # EMA Master Trend (price vs EMA 9) - absolute direction filter
     EMA_MASTER_PERIOD = 9             # EMA period for master trend (price vs EMA)
     EMA_MASTER_ENABLED = True         # Enable/disable EMA master trend filter
 
-    # EMA Crossover Conviction (EMA 9 vs EMA 21) - lot/position booster
-    EMA_CROSSOVER_FAST = 9            # Fast EMA period for crossover check
-    EMA_CROSSOVER_SLOW = 15           # Slow EMA period for crossover check
-    EMA_CROSSOVER_LOT_MULT = 2.0      # Lot multiplier when crossover confirms direction
-    EMA_CROSSOVER_MAX_POSITIONS = 5   # Max positions when crossover confirmed
-    EMA_NORMAL_MAX_POSITIONS = 2      # Max positions without crossover confirmation
+    # EMA Crossover (DEPRECATED - direction now uses price vs EMA 9 only)
+    # Kept for backward compatibility with EA bridge protocol
+    EMA_CROSSOVER_FAST = 9            # (deprecated) Fast EMA period
+    EMA_CROSSOVER_SLOW = 15           # (deprecated) Slow EMA period
+    EMA_CROSSOVER_LOT_MULT = 2.0      # (deprecated) Lot multiplier
+    EMA_CROSSOVER_MAX_POSITIONS = 5   # (deprecated) Max positions when crossover confirmed
+    EMA_NORMAL_MAX_POSITIONS = 2      # (deprecated) Max positions without crossover
 
     # Choppy market filters
     MIN_ATR_THRESHOLD = 0.20          # Minimum ATR to allow trading (low vol = sit out)
@@ -87,6 +88,21 @@ class Config:
 
     # ADX Ranging Market Filter
     MIN_ADX_THRESHOLD = 20.0          # Below this = ranging/choppy, don't trade
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Advanced Multi-Indicator Choppy/Ranging Market Filter
+    # Multiple uncorrelated indicators vote - if enough agree market is
+    # ranging/choppy, trading is blocked. This is the primary filter.
+    # ═══════════════════════════════════════════════════════════════════
+    CHOPPY_FILTER_ENABLED = True
+    CHOPPINESS_INDEX_PERIOD = 14           # Lookback period for Choppiness Index
+    CHOPPINESS_INDEX_THRESHOLD = 61.8      # CI above this = choppy (range: 0-100)
+    BOLLINGER_BAND_WIDTH_PERIOD = 20       # BB period for squeeze detection
+    BOLLINGER_SQUEEZE_THRESHOLD = 0.5      # BB width % below this = squeeze/ranging
+    ATR_RATIO_PERIOD = 14                  # Period for ATR ratio computation
+    ATR_RATIO_RANGING_THRESHOLD = 0.75     # current_atr/avg_atr below this = low volatility
+    VARIANCE_RATIO_THRESHOLD = 0.5         # Variance ratio below this = mean-reverting/ranging
+    RANGING_FILTER_AGREEMENT = 2           # Number of indicators that must agree to block
 
     # Regime detection (dual-mode system)
     REGIME_ATR_RATIO_THRESHOLD = 0.8       # current_atr/avg_atr < this = ranging/choppy

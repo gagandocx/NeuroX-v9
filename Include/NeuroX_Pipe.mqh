@@ -594,6 +594,8 @@ void WriteMT5Heartbeat()
     static int ema9_handle = INVALID_HANDLE;
     static int ema15_handle = INVALID_HANDLE;
     static int adx_handle = INVALID_HANDLE;
+    static int bb_handle = INVALID_HANDLE;
+    static int chop_atr_handle = INVALID_HANDLE;
     static bool ema_debug_logged = false;
 
     if(ema9_handle == INVALID_HANDLE)
@@ -602,11 +604,16 @@ void WriteMT5Heartbeat()
         ema15_handle = iMA(_Symbol, PERIOD_M1, InpEmaSlowPeriod, 0, MODE_EMA, PRICE_CLOSE);
     if(adx_handle == INVALID_HANDLE)
         adx_handle = iADX(_Symbol, InpADXTimeframe, 14);
+    if(bb_handle == INVALID_HANDLE)
+        bb_handle = iBands(_Symbol, PERIOD_M1, 20, 0, 2.0, PRICE_CLOSE);
+    if(chop_atr_handle == INVALID_HANDLE)
+        chop_atr_handle = iATR(_Symbol, PERIOD_M1, 14);
 
     if(!ema_debug_logged)
     {
         Print("[NeuroX] EMA init: ema9_handle=", ema9_handle, " ema15_handle=", ema15_handle,
-              " adx_handle=", adx_handle);
+              " adx_handle=", adx_handle, " bb_handle=", bb_handle,
+              " chop_atr_handle=", chop_atr_handle);
     }
 
     if(ema9_handle != INVALID_HANDLE && ema15_handle != INVALID_HANDLE)
@@ -620,17 +627,69 @@ void WriteMT5Heartbeat()
         if(adx_handle != INVALID_HANDLE)
             CopyBuffer(adx_handle, 0, 0, 1, adx_buf);
         g_currentADX = adx_buf[0];
+
+        // Compute swing high/low from recent bars
+        double swing_high = 0.0, swing_low = 0.0;
+        double highs[20], lows[20];
+        if(CopyHigh(_Symbol, PERIOD_M1, 0, 20, highs) == 20 &&
+           CopyLow(_Symbol, PERIOD_M1, 0, 20, lows) == 20)
+        {
+            swing_high = highs[0];
+            swing_low = lows[0];
+            for(int i = 1; i < 20; i++)
+            {
+                if(highs[i] > swing_high) swing_high = highs[i];
+                if(lows[i] < swing_low) swing_low = lows[i];
+            }
+        }
+
+        // Bollinger Bands (buffer 1 = upper, buffer 2 = lower)
+        double bb_upper_buf[1], bb_lower_buf[1];
+        bb_upper_buf[0] = 0.0;
+        bb_lower_buf[0] = 0.0;
+        if(bb_handle != INVALID_HANDLE)
+        {
+            CopyBuffer(bb_handle, 1, 0, 1, bb_upper_buf);
+            CopyBuffer(bb_handle, 2, 0, 1, bb_lower_buf);
+        }
+
+        // Choppiness Index: 100 * LOG10(SUM(ATR,n) / (Highest-Lowest)) / LOG10(n)
+        double choppiness_value = 0.0;
+        double atr_values[14];
+        if(chop_atr_handle != INVALID_HANDLE &&
+           CopyBuffer(chop_atr_handle, 0, 0, 14, atr_values) == 14)
+        {
+            double atr_sum = 0.0;
+            for(int i = 0; i < 14; i++)
+                atr_sum += atr_values[i];
+            double period_highs[14], period_lows[14];
+            if(CopyHigh(_Symbol, PERIOD_M1, 0, 14, period_highs) == 14 &&
+               CopyLow(_Symbol, PERIOD_M1, 0, 14, period_lows) == 14)
+            {
+                double highest = period_highs[0];
+                double lowest = period_lows[0];
+                for(int i = 1; i < 14; i++)
+                {
+                    if(period_highs[i] > highest) highest = period_highs[i];
+                    if(period_lows[i] < lowest) lowest = period_lows[i];
+                }
+                double range = highest - lowest;
+                if(range > 0.0)
+                    choppiness_value = 100.0 * MathLog10(atr_sum / range) / MathLog10(14.0);
+            }
+        }
         
         if(!ema_debug_logged)
         {
             Print("[NeuroX] EMA copy: res9=", res9, " res15=", res15,
                   " val9=", ema9_buf[0], " val15=", ema15_buf[0],
-                  " adx=", adx_buf[0]);
+                  " adx=", adx_buf[0], " chop=", choppiness_value);
             ema_debug_logged = true;
         }
         
         if(res9 == 1 && res15 == 1)
         {
+            // Format: ema9|ema15|max_distance|open_positions|adx|swing_high|swing_low|bb_upper|bb_lower|choppiness
             int emaFile = FileOpen("neurox_v9_ema.txt",
                                    FILE_WRITE | FILE_TXT | FILE_COMMON);
             if(emaFile != INVALID_HANDLE)
@@ -640,7 +699,12 @@ void WriteMT5Heartbeat()
                     DoubleToString(ema15_buf[0], 2) + "|" +
                     DoubleToString(InpEmaMaxDistance, 2) + "|" +
                     IntegerToString(CountOpenPositions()) + "|" +
-                    DoubleToString(adx_buf[0], 2));
+                    DoubleToString(adx_buf[0], 2) + "|" +
+                    DoubleToString(swing_high, 2) + "|" +
+                    DoubleToString(swing_low, 2) + "|" +
+                    DoubleToString(bb_upper_buf[0], 2) + "|" +
+                    DoubleToString(bb_lower_buf[0], 2) + "|" +
+                    DoubleToString(choppiness_value, 2));
                 FileClose(emaFile);
             }
         }
