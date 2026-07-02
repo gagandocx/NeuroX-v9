@@ -631,6 +631,7 @@ void ManageExistingPositions(double currentPrice, double ema9Val,
          // --- Tight trailing after breakeven ---
          // Trail SL behind current price by InpTrailDistance
          // Only move SL in favorable direction (never widen)
+         // NO cooldown here - trail must update every tick as price moves
          double trailSL = 0.0;
          if(isBuy)
             trailSL = NormalizeDouble(price - InpTrailDistance, digits);
@@ -661,8 +662,7 @@ void ManageExistingPositions(double currentPrice, double ema9Val,
             }
          }
 
-         // Cooldown: max one modify per second
-         if(shouldTrail && (TimeCurrent() - g_lastModifyTime) >= 1)
+         if(shouldTrail)
          {
             if(g_trade.PositionModify(ticket, trailSL, currentTP))
             {
@@ -673,6 +673,21 @@ void ManageExistingPositions(double currentPrice, double ema9Val,
                      " SL=", DoubleToString(trailSL, digits),
                      " Price=", DoubleToString(price, digits),
                      " Dist=$", DoubleToString(InpTrailDistance, 2));
+            }
+         }
+         else
+         {
+            // Debug: print why trail was blocked (only once per second to avoid log spam)
+            static datetime s_lastTrailDebug = 0;
+            if(TimeCurrent() - s_lastTrailDebug >= 1)
+            {
+               s_lastTrailDebug = TimeCurrent();
+               Print("[NeuroX Standalone] TRAIL BLOCKED: Ticket ", ticket,
+                     " trailSL=", DoubleToString(trailSL, digits),
+                     " currentSL=", DoubleToString(currentSL, digits),
+                     " price=", DoubleToString(price, digits),
+                     " validTrail=", validTrail,
+                     " isBuy=", isBuy);
             }
          }
       }

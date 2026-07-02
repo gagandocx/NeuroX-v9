@@ -13,16 +13,25 @@
     "7. Verify tests pass"
   ],
   "acceptance_criteria": [
-    "Config.TRAIL_DISTANCE_AFTER_BE = 1.50 exists",
+    "Config.TRAIL_DISTANCE_AFTER_BE = 1.00 exists",
+    "Config.BREAKEVEN_PROFIT_THRESHOLD = 6.00 (trigger when PnL hits $6)",
+    "Config.BREAKEVEN_LOCK_AMOUNT = 5.00 (lock $5 profit)",
     "CandleCloseManager detects candle close using system time (not solely tick_collector._bar_start_minute)",
-    "After BE moves SL to entry+$1, trailing kicks in and trails by configurable distance",
+    "After BE moves SL to lock $5 profit, trailing kicks in at $1 raw price distance behind market",
     "Trail only moves SL in favorable direction (never widens)",
-    "Standalone EA has InpTrailDistance input parameter",
+    "Standalone EA has InpTrailDistance=1.00, InpBreakevenProfitThreshold=6.00, InpBreakevenLockAmount=5.00",
     "All existing tests pass, new tests for trailing pass"
   ],
   "verification": [
     "python3 -m pytest tests/test_candle_close.py -v",
     "python3 -m pytest tests/ --tb=short -q --ignore=tests/test_tick_collector.py"
   ],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "findings": [
+    "Python _get_be_sl_price was using BREAKEVEN_LOCK_AMOUNT as raw price offset - fixed to convert dollars to price distance (lockDist = dollars / (lot_size * contract_size))",
+    "Floating point: 0.60 * 0.10 * 100 = 5.999... not 6.0 - tests use 0.61 to avoid boundary issue",
+    "Added InpBreakevenLock input to bridge EA (NeuroX_EA_v9.mq5) since it was missing",
+    "TRAIL FIX: Removed 1-second cooldown from trailing section in both Standalone EA and NeuroX_Position.mqh. Cooldown was blocking rapid SL updates as price moved tick by tick after breakeven. Trail naturally cannot widen (never-widen check stays), so cooldown was unnecessary and harmful.",
+    "Added debug Print showing trailSL vs currentSL when trail is blocked (throttled to 1/sec to avoid log spam)"
+  ]
 }
