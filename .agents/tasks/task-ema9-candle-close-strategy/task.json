@@ -2,7 +2,7 @@
   "task_id": "task-ema9-candle-close-strategy",
   "task_description": "Overhaul NeuroX v9 trading strategy: remove EMA 15 crossover (use only price vs EMA 9 for direction), add world-class choppy market filter, implement candle-close exit system with swing SL, $5 breakeven logic, and advanced M1 reversal detection for early loss cutting.",
   "status": "completed",
-  "feature_order": ["FEAT-001", "FEAT-002"],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
   "blocked_reason": null,
   "verification": {
     "build": "pass",
