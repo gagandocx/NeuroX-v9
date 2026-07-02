@@ -33,11 +33,11 @@ input double InpEmaMaxDistance          = 0.80;          // Max Distance from EM
 // EMA-Based Stop Loss
 input int    InpEmaSlPeriod             = 60;            // EMA Period for SL Placement
 input bool   InpEmaSlEnabled            = true;          // Use EMA for SL
-input double InpEmaSlMinDistance        = 0.50;          // Min EMA SL Distance ($)
+input double InpEmaSlMinDistance        = 5.00;          // Min EMA SL Distance ($) - safety floor if 60 EMA too close
 
 // Swing SL (fallback when EMA SL disabled)
 input int    InpSwingSlLookback         = 10;            // Swing SL Lookback Bars
-input double InpSwingSlMinDistance      = 0.50;          // Min Swing SL Distance ($)
+input double InpSwingSlMinDistance      = 5.00;          // Min Swing SL Distance ($) - safety floor if swing too close
 
 // Breakeven
 input double InpBreakevenProfitThreshold = 5.00;         // BE Trigger Profit ($)

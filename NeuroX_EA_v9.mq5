@@ -72,6 +72,7 @@ input int      InpEmaTrendPeriod   = 50;        // EMA Trend Period (main direct
 input bool     InpEmaTrendEnabled  = true;      // Enable EMA trend filter (50 EMA main direction)
 input int      InpEmaSlPeriod      = 60;        // EMA SL Period (SL placed at this EMA level)
 input int      InpMinADX           = 20;        // Min ADX to allow trading (below = ranging/choppy)
+input int      InpRangingFilterAgreement = 2;   // Choppy filter votes needed to block (of 5)
 input ENUM_TIMEFRAMES InpADXTimeframe = PERIOD_M5; // ADX timeframe (M5 recommended)
 input double   InpDynamicTPThreshold = 9990.0;  // TP pips threshold for dynamic mode
 input int      InpLimitTimeout     = 30;        // Limit order timeout (seconds)

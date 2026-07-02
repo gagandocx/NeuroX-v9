@@ -56,7 +56,7 @@ class Config:
 
     # Swing High/Low SL placement
     SWING_SL_LOOKBACK = 10                # Bars to look back for swing hi/lo
-    SWING_SL_MIN_DISTANCE = 0.50          # Minimum SL distance from entry ($)
+    SWING_SL_MIN_DISTANCE = 5.00          # Minimum SL distance from entry ($) - safety floor if swing too close
 
     # Breakeven logic
     BREAKEVEN_PROFIT_THRESHOLD = 5.00     # $ profit to trigger BE move
@@ -103,7 +103,7 @@ class Config:
     # ═══════════════════════════════════════════════════════════════════
     EMA_SL_PERIOD = 60                # EMA period for SL placement
     EMA_SL_ENABLED = True             # Use EMA for SL (if False, uses swing high/low)
-    EMA_SL_MIN_DISTANCE = 0.50        # Minimum SL distance from entry ($)
+    EMA_SL_MIN_DISTANCE = 5.00        # Minimum SL distance from entry ($) - safety floor if 60 EMA too close
 
     # EMA Crossover (DEPRECATED - direction now uses price vs EMA 9 only)
     # Kept for backward compatibility with EA bridge protocol

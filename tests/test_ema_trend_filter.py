@@ -30,8 +30,8 @@ class TestEmaTrendFilterConfig:
         assert Config.EMA_SL_ENABLED is True
 
     def test_ema_sl_min_distance_default(self):
-        """EMA_SL_MIN_DISTANCE should default to 0.50."""
-        assert Config.EMA_SL_MIN_DISTANCE == 0.50
+        """EMA_SL_MIN_DISTANCE should default to 5.00."""
+        assert Config.EMA_SL_MIN_DISTANCE == 5.00
 
 
 class TestReadEmaFromEaWith50Ema:
@@ -217,7 +217,7 @@ class TestEmaBasedSL:
         current_price = 2660.0
         ea_ema_sl = 2655.0
         ema_sl_enabled = True
-        min_distance = 0.50
+        min_distance = Config.EMA_SL_MIN_DISTANCE
 
         if ema_sl_enabled and ea_ema_sl > 0.0:
             sl_distance = abs(current_price - ea_ema_sl)
@@ -233,7 +233,7 @@ class TestEmaBasedSL:
         current_price = 2660.0
         ea_ema_sl = 2659.80  # Very close
         ema_sl_enabled = True
-        min_distance = 0.50
+        min_distance = Config.EMA_SL_MIN_DISTANCE
 
         if ema_sl_enabled and ea_ema_sl > 0.0:
             sl_distance = abs(current_price - ea_ema_sl)
@@ -242,14 +242,14 @@ class TestEmaBasedSL:
         else:
             sl_distance = 2.0
 
-        assert sl_distance == 0.50
+        assert sl_distance == Config.EMA_SL_MIN_DISTANCE
 
     def test_ema_sl_disabled_uses_swing(self):
         """When EMA_SL_ENABLED is False, swing SL is used."""
         current_price = 2660.0
         ea_ema_sl = 2655.0
         ema_sl_enabled = False
-        min_distance = 0.50
+        min_distance = Config.EMA_SL_MIN_DISTANCE
 
         used_ema_sl = False
         if ema_sl_enabled and ea_ema_sl > 0.0:

@@ -543,7 +543,7 @@ class TestConfigValues:
         assert Config.SWING_SL_LOOKBACK == 10
 
     def test_swing_sl_min_distance(self):
-        assert Config.SWING_SL_MIN_DISTANCE == 0.50
+        assert Config.SWING_SL_MIN_DISTANCE == 5.00
 
     def test_breakeven_profit_threshold(self):
         assert Config.BREAKEVEN_PROFIT_THRESHOLD == 5.00
