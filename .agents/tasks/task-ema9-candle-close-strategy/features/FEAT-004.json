@@ -1,0 +1,20 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Fix v2 semantic review blocking issues: variance ratio voter unreachable due to deque maxlen, EA breakeven threshold contradicts Python design.",
+  "status": "in_progress",
+  "steps": [
+    "1. In config.py: Change REGIME_VARIANCE_RATIO_LOOKBACK from 20 to 19 so the check len(completed_bars) >= vr_lookback + 1 can pass (20 >= 20).",
+    "2. In NeuroX_EA_v9.mq5: Change InpBreakevenProfit from 0.30 to 5.00 to match Python Config.BREAKEVEN_PROFIT_THRESHOLD = 5.00."
+  ],
+  "acceptance_criteria": [
+    "REGIME_VARIANCE_RATIO_LOOKBACK is 19 in config.py",
+    "InpBreakevenProfit is 5.00 in NeuroX_EA_v9.mq5",
+    "All tests pass (same 20 pre-existing failures acceptable)"
+  ],
+  "verification": [
+    "python3 -m pytest tests/ --tb=short -q --ignore=tests/test_bridge.py"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

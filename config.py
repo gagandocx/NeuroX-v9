@@ -120,7 +120,7 @@ class Config:
 
     # Regime detection (dual-mode system)
     REGIME_ATR_RATIO_THRESHOLD = 0.8       # current_atr/avg_atr < this = ranging/choppy
-    REGIME_VARIANCE_RATIO_LOOKBACK = 20    # Bars for variance ratio computation
+    REGIME_VARIANCE_RATIO_LOOKBACK = 19    # Bars for variance ratio computation
     REGIME_VARIANCE_RATIO_THRESHOLD = 0.5  # Variance ratio < this = mean-reverting
 
     # Mean reversion (ranging market strategy)
