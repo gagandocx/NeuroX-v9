@@ -91,7 +91,7 @@ class TestCandleCloseDetection:
         assert result is False
 
     def test_candle_close_via_monitor_thread(self):
-        """Monitor thread should fire candle close signal on minute change."""
+        """Monitor thread should fire candle close signal on minute change when in profit."""
         current_minute = [30]
         exit_signals = []
 
@@ -100,7 +100,7 @@ class TestCandleCloseDetection:
             return True
 
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2001.0,
+            get_price_fn=lambda: 2000.10,  # Small profit: PnL = 0.10 * 10 = $1 (above 0, below BE)
             write_exit_fn=write_exit,
             get_bar_minute_fn=lambda: current_minute[0],
             check_interval_ms=10,
@@ -122,65 +122,112 @@ class TestCandleCloseDetection:
         assert exit_signals[0]["reason"] == "candle_close"
         assert exit_signals[0]["ticket"] == "T1"
 
+    def test_candle_close_does_not_fire_when_in_loss(self):
+        """Monitor thread should NOT fire candle close when trade is in loss."""
+        current_minute = [30]
+        exit_signals = []
+
+        def write_exit(**kwargs):
+            exit_signals.append(kwargs)
+            return True
+
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 1999.0,  # BUY at 2000, price is below -> in loss
+            write_exit_fn=write_exit,
+            get_bar_minute_fn=lambda: current_minute[0],
+            check_interval_ms=10,
+        )
+
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        mgr.start()
+
+        time.sleep(0.05)
+        # Change minute - candle close detected but trade is in loss
+        current_minute[0] = 31
+        time.sleep(0.1)
+
+        mgr.stop()
+
+        # Should NOT fire close when in loss - SL protects downside
+        assert mgr.close_fired is False
+        assert len(exit_signals) == 0
+        # Trade should still be tracking (kept running)
+        assert mgr.is_tracking is True
+
 
 class TestBreakevenLogic:
-    """Test $5 profit breakeven at $1."""
+    """Test $5 profit breakeven at $1.
+
+    With LOT_SIZE=0.10 and CONTRACT_SIZE=100, the multiplier is 10.
+    So a $0.50 price move = $5.00 actual PnL (meets the $5 threshold).
+    """
 
     def test_be_triggers_at_5_profit_buy(self):
-        """Should trigger BE move when profit >= $5 for BUY."""
+        """Should trigger BE move when actual PnL >= $5 for BUY.
+
+        Price must move $0.50 for actual PnL = 0.50 * 0.10 * 100 = $5.00.
+        """
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2005.0,
+            get_price_fn=lambda: 2000.50,
             write_exit_fn=lambda **kw: True,
             get_bar_minute_fn=lambda: 30,
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
 
-        # Price at entry + $5 = $2005
-        result = mgr._check_breakeven(2005.0)
+        # Price at entry + $0.50 -> PnL = 0.50 * 10 = $5.00
+        result = mgr._check_breakeven(2000.50)
         assert result is True
 
     def test_be_triggers_at_5_profit_sell(self):
-        """Should trigger BE move when profit >= $5 for SELL."""
+        """Should trigger BE move when actual PnL >= $5 for SELL.
+
+        SELL: price must drop $0.50 for actual PnL = 0.50 * 0.10 * 100 = $5.00.
+        """
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 1995.0,
+            get_price_fn=lambda: 1999.50,
             write_exit_fn=lambda **kw: True,
             get_bar_minute_fn=lambda: 30,
         )
         mgr.start_tracking("SELL", 2000.0, "T1")
 
-        # SELL: profit = entry - current = 2000 - 1995 = 5
-        result = mgr._check_breakeven(1995.0)
+        # SELL: profit = entry - current = 2000 - 1999.50 = 0.50
+        # Actual PnL = 0.50 * 10 = $5.00
+        result = mgr._check_breakeven(1999.50)
         assert result is True
 
     def test_be_not_triggered_below_threshold(self):
-        """Should NOT trigger BE when profit < $5."""
+        """Should NOT trigger BE when actual PnL < $5.
+
+        A $0.40 price move = 0.40 * 10 = $4.00 actual PnL (below $5 threshold).
+        """
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2004.0,
+            get_price_fn=lambda: 2000.40,
             write_exit_fn=lambda **kw: True,
             get_bar_minute_fn=lambda: 30,
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
 
-        result = mgr._check_breakeven(2004.0)
+        result = mgr._check_breakeven(2000.40)
         assert result is False
 
     def test_be_only_fires_once(self):
         """BE move should only fire once, not repeatedly."""
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2006.0,
+            get_price_fn=lambda: 2001.0,
             write_exit_fn=lambda **kw: True,
             get_bar_minute_fn=lambda: 30,
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
 
-        assert mgr._check_breakeven(2006.0) is True
+        # $1.0 price move = $10 PnL -> triggers
+        assert mgr._check_breakeven(2001.0) is True
         mgr._be_moved = True
-        assert mgr._check_breakeven(2006.0) is False
+        assert mgr._check_breakeven(2001.0) is False
 
     def test_be_sl_price_buy(self):
         """BE SL for BUY should be entry + $1."""
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2006.0,
+            get_price_fn=lambda: 2001.0,
             write_exit_fn=lambda **kw: True,
             get_bar_minute_fn=lambda: 30,
         )
@@ -200,7 +247,11 @@ class TestBreakevenLogic:
         assert sl == 1999.0
 
     def test_be_fires_modify_sl_via_monitor(self):
-        """Monitor thread should fire MODIFY_SL when BE threshold reached."""
+        """Monitor thread should fire MODIFY_SL when BE threshold reached.
+
+        With 0.10 lots * 100 contract = 10x multiplier.
+        Price at 2000.60 -> PnL = 0.60 * 10 = $6.00 (above $5 threshold).
+        """
         exit_signals = []
 
         def write_exit(**kwargs):
@@ -208,7 +259,7 @@ class TestBreakevenLogic:
             return True
 
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2006.0,
+            get_price_fn=lambda: 2000.60,
             write_exit_fn=write_exit,
             get_bar_minute_fn=lambda: 30,
             check_interval_ms=10,
@@ -427,16 +478,17 @@ class TestReversalFiresEarlyExit:
 
 
 class TestPnlComputation:
-    """Test P&L computation."""
+    """Test P&L computation (actual dollar PnL = price_diff * lot_size * contract_size)."""
 
     def test_pnl_buy_profit(self):
-        """BUY P&L should be current - entry."""
+        """BUY P&L should be (current - entry) * lot_size * contract_size."""
         mgr = CandleCloseManager(
             get_price_fn=lambda: 2005.0,
             write_exit_fn=lambda **kw: True,
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
-        assert mgr._compute_pnl(2005.0) == 5.0
+        # price_diff=5.0, lot=0.10, contract=100 -> 5.0 * 10 = 50.0
+        assert mgr._compute_pnl(2005.0) == 5.0 * Config.LOT_SIZE * Config.CONTRACT_SIZE
 
     def test_pnl_buy_loss(self):
         """BUY P&L should be negative when price drops."""
@@ -445,16 +497,18 @@ class TestPnlComputation:
             write_exit_fn=lambda **kw: True,
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
-        assert mgr._compute_pnl(1998.0) == -2.0
+        # price_diff=-2.0, lot=0.10, contract=100 -> -2.0 * 10 = -20.0
+        assert mgr._compute_pnl(1998.0) == -2.0 * Config.LOT_SIZE * Config.CONTRACT_SIZE
 
     def test_pnl_sell_profit(self):
-        """SELL P&L should be entry - current."""
+        """SELL P&L should be (entry - current) * lot_size * contract_size."""
         mgr = CandleCloseManager(
             get_price_fn=lambda: 1995.0,
             write_exit_fn=lambda **kw: True,
         )
         mgr.start_tracking("SELL", 2000.0, "T1")
-        assert mgr._compute_pnl(1995.0) == 5.0
+        # price_diff=5.0, lot=0.10, contract=100 -> 5.0 * 10 = 50.0
+        assert mgr._compute_pnl(1995.0) == 5.0 * Config.LOT_SIZE * Config.CONTRACT_SIZE
 
     def test_pnl_sell_loss(self):
         """SELL P&L should be negative when price rises."""
@@ -463,7 +517,17 @@ class TestPnlComputation:
             write_exit_fn=lambda **kw: True,
         )
         mgr.start_tracking("SELL", 2000.0, "T1")
-        assert mgr._compute_pnl(2003.0) == -3.0
+        # price_diff=-3.0, lot=0.10, contract=100 -> -3.0 * 10 = -30.0
+        assert mgr._compute_pnl(2003.0) == -3.0 * Config.LOT_SIZE * Config.CONTRACT_SIZE
+
+    def test_pnl_no_direction(self):
+        """P&L should be 0 when no direction is set."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2003.0,
+            write_exit_fn=lambda **kw: True,
+        )
+        # Don't start tracking - direction is None
+        assert mgr._compute_pnl(2003.0) == 0.0
 
 
 class TestConfigValues:
@@ -501,3 +565,9 @@ class TestConfigValues:
 
     def test_max_positions_is_one(self):
         assert Config.MAX_POSITIONS == 1
+
+    def test_contract_size(self):
+        assert Config.CONTRACT_SIZE == 100
+
+    def test_lot_size(self):
+        assert Config.LOT_SIZE == 0.10

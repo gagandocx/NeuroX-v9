@@ -14,6 +14,7 @@ class Config:
 
     # Symbol
     SYMBOL = "XAUUSD"
+    CONTRACT_SIZE = 100  # XAUUSD: 100 oz per lot
 
     # Tick data (from EA tick price file)
     TICK_FILE = "neurox_v9_tick_price.txt"

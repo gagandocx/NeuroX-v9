@@ -146,12 +146,20 @@ class CandleCloseManager:
         return self._be_moved
 
     def _compute_pnl(self, current_price: float) -> float:
-        """Compute unrealized P&L in dollars."""
+        """Compute unrealized P&L in actual dollars.
+
+        Multiplies the raw price difference by lot_size * contract_size
+        to get the real dollar profit/loss. For XAUUSD with 0.10 lots:
+        contract_size=100 oz, so 0.10 * 100 = 10 oz.
+        A $0.50 price move = $5.00 actual profit.
+        """
         if self._direction == "BUY":
-            return current_price - self._entry_price
+            price_diff = current_price - self._entry_price
         elif self._direction == "SELL":
-            return self._entry_price - current_price
-        return 0.0
+            price_diff = self._entry_price - current_price
+        else:
+            return 0.0
+        return price_diff * Config.LOT_SIZE * Config.CONTRACT_SIZE
 
     def _check_candle_close(self) -> bool:
         """
@@ -349,11 +357,14 @@ class CandleCloseManager:
                         fire_reason = "reversal_detected"
                         fire_ticket = self._ticket
                         self._tracking = False
-                    # Priority 2: Candle close exit
+                    # Priority 2: Candle close exit (only if in profit)
                     elif self._check_candle_close():
-                        fire_reason = "candle_close"
-                        fire_ticket = self._ticket
-                        self._tracking = False
+                        pnl = self._compute_pnl(current_price)
+                        if pnl > 0:
+                            fire_reason = "candle_close"
+                            fire_ticket = self._ticket
+                            self._tracking = False
+                        # If in loss, let trade keep running - SL protects downside
                     # Priority 3: Breakeven move
                     elif self._check_breakeven(current_price):
                         modify_sl = self._get_be_sl_price()
