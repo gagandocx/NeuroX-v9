@@ -34,6 +34,9 @@ set "MT5_TERMINAL_ID=930119AA53207C8778B41171FBFFB46F"
 set "MT5_BASE=C:\Users\gagan\AppData\Roaming\MetaQuotes\Terminal\%MT5_TERMINAL_ID%"
 set "MT5_EXPERTS=%MT5_BASE%\MQL5\Experts\Advisors"
 set "MT5_INCLUDE=%MT5_BASE%\MQL5\Include\NeuroX"
+set "MT5_SCRIPTS=%MT5_BASE%\MQL5\Scripts"
+set "EXPORT_TICKS_URL=https://raw.githubusercontent.com/gagandocx/Claude/main/ExportRealTicks.mq5"
+set "EXPORT_TICKS_FILE=ExportRealTicks.mq5"
 
 :: MetaEditor include resolution terminal (copy includes here too)
 set "MT5_EDITOR_ID=D0E8209F77C8CF37AD8BF550E51FF075"
@@ -167,6 +170,20 @@ if exist "%REPO_DIR%\Include\*.mqh" (
 if exist "%REPO_DIR%\Include\*.mqh" (
     copy /Y "%REPO_DIR%\Include\*.mqh" "%MT5_EDITOR_INCLUDE%\" >nul 2>&1
     echo        [OK] Includes copied to: %MT5_EDITOR_INCLUDE% (MetaEditor)
+)
+
+:: Download and copy ExportRealTicks.mq5 to MT5 Scripts folder
+if not exist "%MT5_SCRIPTS%" mkdir "%MT5_SCRIPTS%"
+echo        Downloading ExportRealTicks.mq5...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%EXPORT_TICKS_URL%' -OutFile '%MT5_SCRIPTS%\%EXPORT_TICKS_FILE%' -UseBasicParsing; exit 0 } catch { Write-Host $_.Exception.Message; exit 1 }"
+if !ERRORLEVEL! neq 0 (
+    echo        [WARNING] Failed to download ExportRealTicks.mq5. Skipping.
+) else (
+    if exist "%MT5_SCRIPTS%\%EXPORT_TICKS_FILE%" (
+        echo        [OK] %EXPORT_TICKS_FILE% downloaded to: %MT5_SCRIPTS%
+    ) else (
+        echo        [WARNING] %EXPORT_TICKS_FILE% not found after download. Skipping.
+    )
 )
 
 echo.
