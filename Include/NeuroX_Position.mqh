@@ -307,10 +307,17 @@ void ManageOpenPositions()
             entryTime = currentTime;
         }
 
-        // --- BREAKEVEN LOGIC: $5 profit -> move SL to entry + $1 ---
+        // --- BREAKEVEN LOGIC: $5 profit -> move SL to entry + lockDist ---
         // Brain-controlled threshold or default $5/$1
         double beProfit = (g_brain_be_profit > 0) ? g_brain_be_profit : InpBreakevenProfit;
-        double beLock = 1.00;  // Lock $1 profit at breakeven
+        // Convert dollar lock amount to price distance using lot size and contract size
+        double beLock = 1.00 / (InpDefaultLotSize * 100.0);
+
+        // Minimum stop distance from broker
+        double minStopDist = (SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) + 1)
+                             * SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+        double currentBid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        double currentAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
 
         if(profit >= beProfit)
         {
@@ -320,25 +327,38 @@ void ManageOpenPositions()
             else
                 newSL = NormalizeDouble(entryPrice - beLock, digits);
 
+            // Validate against minimum stop distance
+            bool validStop = true;
+            if(isBuy && newSL >= currentBid - minStopDist)
+                validStop = false;
+            if(!isBuy && newSL <= currentAsk + minStopDist)
+                validStop = false;
+
             // Only move SL in favorable direction (never widen)
             bool shouldModify = false;
-            if(isBuy)
+            if(validStop)
             {
-                if(newSL > currentSL)
-                    shouldModify = true;
-            }
-            else
-            {
-                if(currentSL == 0 || newSL < currentSL)
-                    shouldModify = true;
+                if(isBuy)
+                {
+                    if(newSL > currentSL)
+                        shouldModify = true;
+                }
+                else
+                {
+                    if(currentSL == 0 || newSL < currentSL)
+                        shouldModify = true;
+                }
             }
 
-            if(shouldModify)
+            // Cooldown: max one modify per second
+            if(shouldModify && (currentTime - g_lastModifyAttempt) >= 1)
             {
                 if(g_trade.PositionModify(ticket, newSL, currentTP))
                 {
+                    g_lastModifyAttempt = currentTime;
                     Print("[NeuroX] BE MOVE: Ticket ", ticket,
                           " SL=", DoubleToString(newSL, digits),
+                          " LockDist=", DoubleToString(beLock, digits),
                           " (profit $", DoubleToString(profit, 2), " >= $",
                           DoubleToString(beProfit, 2), ")");
                 }
@@ -352,26 +372,38 @@ void ManageOpenPositions()
             else
                 trailSL = NormalizeDouble(currentPrice + InpTrailAfterBE, digits);
 
+            // Validate against minimum stop distance
+            bool validTrail = true;
+            if(isBuy && trailSL >= currentBid - minStopDist)
+                validTrail = false;
+            if(!isBuy && trailSL <= currentAsk + minStopDist)
+                validTrail = false;
+
             // Refresh current SL (may have been updated by BE move above)
             if(g_position.SelectByTicket(ticket))
                 currentSL = g_position.StopLoss();
 
             bool shouldTrail = false;
-            if(isBuy)
+            if(validTrail)
             {
-                if(trailSL > currentSL && currentSL > 0)
-                    shouldTrail = true;
-            }
-            else
-            {
-                if(trailSL < currentSL)
-                    shouldTrail = true;
+                if(isBuy)
+                {
+                    if(trailSL > currentSL && currentSL > 0)
+                        shouldTrail = true;
+                }
+                else
+                {
+                    if(trailSL < currentSL)
+                        shouldTrail = true;
+                }
             }
 
-            if(shouldTrail)
+            // Cooldown: max one modify per second
+            if(shouldTrail && (currentTime - g_lastModifyAttempt) >= 1)
             {
                 if(g_trade.PositionModify(ticket, trailSL, currentTP))
                 {
+                    g_lastModifyAttempt = currentTime;
                     Print("[NeuroX] TRAIL: Ticket ", ticket,
                           " SL=", DoubleToString(trailSL, digits),
                           " Price=", DoubleToString(currentPrice, digits),

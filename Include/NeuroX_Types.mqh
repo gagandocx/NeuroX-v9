@@ -225,6 +225,9 @@ datetime       g_lastExecutedSignalTime = 0;
 // Emergency close cooldown
 datetime       g_lastEmergencyClose = 0;
 
+// SL modification cooldown (prevent spam of failed modify attempts)
+datetime       g_lastModifyAttempt = 0;
+
 // Brain settings (overrides input parameters dynamically)
 double         g_brain_sl           = 0;
 double         g_brain_min_conf     = 0;
