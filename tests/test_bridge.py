@@ -166,7 +166,7 @@ class TestBridgeIntelligence:
         assert intel_path.exists()
 
     def test_write_intelligence_format(self, tmp_bridge):
-        """Intelligence file should be pipe-delimited with exactly 11 fields."""
+        """Intelligence file should be pipe-delimited with exactly 15 fields."""
         tmp_bridge.write_intelligence(
             regime="RANGING",
             atr_value=0.35,
@@ -179,12 +179,16 @@ class TestBridgeIntelligence:
             decision="FILTERED",
             reason="ATR_LOW",
             ema_trend="DOWN",
+            choppy_votes="3/5 CHOPPY",
+            swing_sl="$2648.50",
+            breakeven_status="INACTIVE",
+            reversal_status="CLEAR",
         )
 
         intel_path = tmp_bridge.common_path / Config.INTELLIGENCE_FILE
         content = intel_path.read_text(encoding="ascii").strip()
         fields = content.split("|")
-        assert len(fields) == 11
+        assert len(fields) == 15
 
     def test_write_intelligence_overwrites(self, tmp_bridge):
         """Intelligence file should be overwritten each call, not appended."""
@@ -233,6 +237,10 @@ class TestBridgeIntelligence:
             strategy="TICK_MOMENTUM",
             decision="WAITING",
             reason="",
+            choppy_votes="1/5 TRENDING",
+            swing_sl="$2650.00",
+            breakeven_status="ARMED $5+",
+            reversal_status="CLEAR",
         )
 
         intel_path = tmp_bridge.common_path / Config.INTELLIGENCE_FILE
@@ -249,3 +257,8 @@ class TestBridgeIntelligence:
         assert fields[7] == "TICK_MOMENTUM"
         assert fields[8] == "WAITING"
         assert fields[9] == ""
+        assert fields[10] == ""  # ema_trend defaults to ""
+        assert fields[11] == "1/5 TRENDING"
+        assert fields[12] == "$2650.00"
+        assert fields[13] == "ARMED $5+"
+        assert fields[14] == "CLEAR"

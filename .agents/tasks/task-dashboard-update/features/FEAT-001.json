@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Update dashboard to show new strategy info (market filter, EMA distance, swing SL, breakeven, candle close, reversal) and remove old unused info (Named Pipe, Trail Tier, EMA crossover label)",
+  "status": "in_progress",
+  "steps": [
+    "1. Add new global variables in NeuroX_Types.mqh for choppy_votes, swing_sl, breakeven_status, reversal_status",
+    "2. Update bridge.py write_intelligence() to accept and write new fields (choppy_votes, swing_sl, breakeven_status, reversal_status)",
+    "3. Update main.py to compute and pass the new fields to write_intelligence()",
+    "4. Update ReadIntelligenceFile() in NeuroX_Execution.mqh to parse the new fields",
+    "5. Update NeuroX_Dashboard.mqh: remove Named Pipe row, remove Trail Tier row, replace EMA crossover with new strategy rows (Market Filter, EMA Distance, Swing SL, Breakeven, Candle Close, Reversal)",
+    "6. Update tests for write_intelligence() to verify new fields"
+  ],
+  "acceptance_criteria": [
+    "Dashboard shows Market Filter with voting counts",
+    "Dashboard shows EMA Distance from EMA 9",
+    "Dashboard shows Swing SL level",
+    "Dashboard shows Breakeven status",
+    "Dashboard shows Candle Close time remaining",
+    "Dashboard shows Reversal detection status",
+    "Named Pipe row removed from dashboard",
+    "Trail Tier row removed from dashboard",
+    "Old EMA crossover label replaced with price vs EMA9 info",
+    "g_trailStatus references removed",
+    "Python tests pass with new intelligence fields"
+  ],
+  "verification": [
+    "python3 -m pytest tests/ --tb=short -q"
+  ],
+  "blocked_reason": null
+}

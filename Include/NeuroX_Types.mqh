@@ -213,6 +213,10 @@ string         g_intelStrategy     = "";
 string         g_intelDecision     = "";
 string         g_intelReason       = "";
 string         g_intelEmaTrend     = "";
+string         g_intelChoppyVotes  = "";
+string         g_intelSwingSL      = "";
+string         g_intelBreakevenStatus = "";
+string         g_intelReversalStatus  = "";
 
 // Duplicate signal execution guard
 datetime       g_lastExecutedSignalTime = 0;
@@ -240,7 +244,7 @@ int            g_trackedCount = 0;
 double         g_momentumPrice = 0.0;
 datetime       g_momentumTime  = 0;
 
-// Trailing status for dashboard
+// Trailing status for dashboard (deprecated - candle-close exit replaces 4-tier trailing)
 string         g_trailStatus   = "No positions";
 
 // Slippage tracking

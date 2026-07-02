@@ -1,9 +1,10 @@
 //+------------------------------------------------------------------+
 //|                                         NeuroX_Dashboard.mqh       |
-//|                              NeuroX v9.0 - Minimal HF Dashboard    |
+//|                              NeuroX v9.0 - Strategy Dashboard       |
 //|                                                                    |
-//|  Compact on-chart dashboard: momentum, P&L, connection only.       |
-//|  Designed for v9 pure momentum scalper - no model/brain/regime.    |
+//|  On-chart dashboard: EMA9 direction, choppy filter, breakeven,     |
+//|  candle-close exit, swing SL, reversal detection, P&L.            |
+//|  Designed for v9 EMA9 candle-close scalper.                        |
 //+------------------------------------------------------------------+
 #ifndef NEUROX_DASHBOARD_MQH
 #define NEUROX_DASHBOARD_MQH
@@ -181,7 +182,7 @@ void UpdateDashboard()
     y += 62;
 
     DashLabel("subtitle", DASH_X + DASH_MARGIN_L, y,
-              "Pure Momentum HF Scalper v" + NEUROX_VERSION, CLR_TITLE, DASH_FONT_SIZE);
+              "EMA9 Candle-Close Scalper v" + NEUROX_VERSION, CLR_TITLE, DASH_FONT_SIZE);
     y += DASH_LINE_H + 4;
 
     // ═══════════════════════════════════════════
@@ -198,13 +199,6 @@ void UpdateDashboard()
         { pyConnStr = "OFFLINE";   pyConnClr = CLR_NEGATIVE; }
     DashRow(y, "conn_py", "Python Bridge:", pyConnStr, pyConnClr);
 
-    // Named Pipe status
-    if(InpBridgeMode != BRIDGE_CSV)
-    {
-        string pipeStr = g_pipeConnected ? "CONNECTED" : "WAITING";
-        color pipeClr = g_pipeConnected ? CLR_POSITIVE : clrYellow;
-        DashRow(y, "conn_pipe", "Named Pipe:", pipeStr, pipeClr);
-    }
     y += 4;
 
     // ═══════════════════════════════════════════
@@ -238,18 +232,79 @@ void UpdateDashboard()
     y += 4;
 
     // ═══════════════════════════════════════════
-    // --- EMA TREND ---
+    // --- STRATEGY ---
     // ═══════════════════════════════════════════
-    DashSeparator(y, "EMA TREND");
+    DashSeparator(y, "STRATEGY");
 
-    // EMA Trend label (primary indicator)
+    // EMA 9 Direction (price vs EMA 9)
     string emaStr = g_intelEmaTrend;
     color emaClr = CLR_NEUTRAL;
     if(StringFind(emaStr, "BUY") >= 0)       emaClr = CLR_POSITIVE;
     else if(StringFind(emaStr, "SELL") >= 0) emaClr = CLR_NEGATIVE;
     else if(emaStr == "WARMUP")              emaClr = clrYellow;
     if(StringLen(emaStr) == 0) emaStr = "---";
-    DashRow(y, "int_ema", "EMA Signal:", emaStr, emaClr);
+    DashRow(y, "st_ema", "EMA 9:", emaStr, emaClr);
+
+    // Market Filter (choppy voting system)
+    string filterStr = g_intelChoppyVotes;
+    color filterClr = CLR_NEUTRAL;
+    if(StringFind(filterStr, "TRENDING") >= 0)   filterClr = CLR_POSITIVE;
+    else if(StringFind(filterStr, "CHOPPY") >= 0) filterClr = CLR_NEGATIVE;
+    if(StringLen(filterStr) == 0) filterStr = "---";
+    DashRow(y, "st_filter", "Market Filter:", filterStr, filterClr);
+
+    // EMA Distance (current distance / max allowed)
+    string emaDistStr = "";
+    color emaDistClr = CLR_NEUTRAL;
+    if(g_intelEmaTrend != "" && g_intelEmaTrend != "WARMUP")
+    {
+        // EA computes EMA distance directly from chart
+        double emaDist = 0.0;
+        double emaBid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        int emaHandle = iMA(_Symbol, PERIOD_M1, 9, 0, MODE_EMA, PRICE_CLOSE);
+        if(emaHandle != INVALID_HANDLE)
+        {
+            double emaVal[1];
+            if(CopyBuffer(emaHandle, 0, 0, 1, emaVal) > 0)
+                emaDist = MathAbs(emaBid - emaVal[0]);
+            IndicatorRelease(emaHandle);
+        }
+        emaDistStr = "$" + DoubleToString(emaDist, 2) + " / $" + DoubleToString(InpEmaMaxDistance, 2);
+        emaDistClr = (emaDist <= InpEmaMaxDistance) ? CLR_POSITIVE : CLR_NEGATIVE;
+    }
+    else
+        emaDistStr = "---";
+    DashRow(y, "st_dist", "EMA Distance:", emaDistStr, emaDistClr);
+
+    // Swing SL level
+    string swingStr = g_intelSwingSL;
+    color swingClr = CLR_NEUTRAL;
+    if(StringLen(swingStr) == 0 || swingStr == "---") { swingStr = "---"; swingClr = CLR_NEUTRAL; }
+    else swingClr = CLR_ACCENT;
+    DashRow(y, "st_swing", "Swing SL:", swingStr, swingClr);
+
+    // Breakeven status
+    string beStr = g_intelBreakevenStatus;
+    color beClr = CLR_NEUTRAL;
+    if(StringFind(beStr, "LOCKED") >= 0)      beClr = CLR_POSITIVE;
+    else if(StringFind(beStr, "ARMED") >= 0)  beClr = clrYellow;
+    else                                       beClr = CLR_NEUTRAL;
+    if(StringLen(beStr) == 0) beStr = "INACTIVE";
+    DashRow(y, "st_be", "Breakeven:", beStr, beClr);
+
+    // Candle Close countdown (time remaining until next M1 candle close)
+    int secRemaining = 60 - (int)(TimeCurrent() % 60);
+    string candleStr = IntegerToString(secRemaining) + "s";
+    color candleClr = (secRemaining <= 10) ? clrYellow : CLR_VALUE;
+    DashRow(y, "st_candle", "Candle Close:", candleStr, candleClr);
+
+    // Reversal detection
+    string revStr = g_intelReversalStatus;
+    color revClr = CLR_NEUTRAL;
+    if(revStr == "DETECTED")      revClr = CLR_NEGATIVE;
+    else if(revStr == "CLEAR")    revClr = CLR_POSITIVE;
+    if(StringLen(revStr) == 0) revStr = "CLEAR";
+    DashRow(y, "st_rev", "Reversal:", revStr, revClr);
 
     // Decision (override with STALE if Python offline)
     color decClr = CLR_NEUTRAL;
@@ -261,24 +316,17 @@ void UpdateDashboard()
     }
     else if(g_intelDecision == "TRADING")       decClr = CLR_POSITIVE;
     else if(g_intelDecision == "COOLDOWN") decClr = clrYellow;
+    else if(g_intelDecision == "HOLDING")  decClr = CLR_POSITIVE;
+    else if(g_intelDecision == "FILTERED") decClr = CLR_NEGATIVE;
     else if(g_intelDecision == "WAITING")  decClr = CLR_NEUTRAL;
     if(StringLen(decStr) == 0) decStr = "---";
-    DashRow(y, "int_dec", "Decision:", decStr, decClr);
+    DashRow(y, "st_dec", "Decision:", decStr, decClr);
 
-    // ADX Filter status
-    string adxStr;
-    color adxClr;
-    if(g_currentADX >= InpMinADX)
+    // Show filter reason when FILTERED
+    if(g_intelDecision == "FILTERED" && StringLen(g_intelReason) > 0)
     {
-        adxStr = "TRENDING (" + DoubleToString(g_currentADX, 1) + ")";
-        adxClr = CLR_POSITIVE;  // green = trading allowed
+        DashRow(y, "st_reason", "Reason:", g_intelReason, CLR_NEGATIVE);
     }
-    else
-    {
-        adxStr = "RANGING (" + DoubleToString(g_currentADX, 1) + ")";
-        adxClr = CLR_NEGATIVE;  // red = trading blocked
-    }
-    DashRow(y, "int_adx", "ADX Filter:", adxStr, adxClr);
 
     y += 4;
 
@@ -296,7 +344,6 @@ void UpdateDashboard()
     DashRow(y, "pos_pl", "Floating P/L:",
             plSign + "$" + DoubleToString(floatingPL, 2), plColor);
 
-    DashRow(y, "pos_trail", "Trail Tier:", g_trailStatus, CLR_ACCENT);
     y += 4;
 
     // ═══════════════════════════════════════════

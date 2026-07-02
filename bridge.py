@@ -168,7 +168,11 @@ class Bridge:
                            regime: str = "EMA", atr_value: float = 0.0,
                            atr_pass: bool = True, tick_pct: float = 0.0,
                            tick_dir: str = "", persistence_count: int = 0,
-                           persistence_dir: str = "") -> bool:
+                           persistence_dir: str = "",
+                           choppy_votes: str = "",
+                           swing_sl: str = "",
+                           breakeven_status: str = "",
+                           reversal_status: str = "") -> bool:
         """Write intelligence state for EA dashboard display.
 
         Writes a pipe-delimited line to the intelligence file. The file is
@@ -179,6 +183,12 @@ class Bridge:
             decision: Overall decision ('TRADING', 'COOLDOWN', 'WAITING').
             reason: Reason for decision (e.g. 'COOLDOWN', 'NEED_EA_EMA').
             ema_trend: EMA trend label from EA data.
+
+        New dashboard fields:
+            choppy_votes: Choppy filter status like '2/5 TRENDING' or '3/5 CHOPPY'.
+            swing_sl: Current swing SL level string like '$2648.50'.
+            breakeven_status: 'INACTIVE' or 'ARMED $5+' or 'LOCKED $1'.
+            reversal_status: 'CLEAR' or 'DETECTED'.
 
         Legacy fields (kept for EA parser compatibility, default to empty/zero):
             regime: Market regime label.
@@ -197,7 +207,7 @@ class Bridge:
             atr_pass_str = "1" if atr_pass else "0"
             line = (f"{regime}|{atr_value}|{atr_pass_str}|{tick_pct}|{tick_dir}|"
                     f"{persistence_count}|{persistence_dir}|{strategy}|{decision}|{reason}|"
-                    f"{ema_trend}")
+                    f"{ema_trend}|{choppy_votes}|{swing_sl}|{breakeven_status}|{reversal_status}")
             intel_path.write_text(line, encoding="ascii")
             return True
         except Exception:

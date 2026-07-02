@@ -88,3 +88,54 @@ def is_market_choppy(
     reason_str = ";".join(reasons) if reasons else ""
 
     return (is_choppy, reason_str)
+
+
+def count_choppy_votes(
+    adx_value: float = 100.0,
+    choppiness_index: float = 0.0,
+    bb_upper: float = 0.0,
+    bb_lower: float = 0.0,
+    current_price: float = 0.0,
+    current_atr: float = 0.0,
+    avg_atr: float = 0.0,
+    variance_ratio: float = 1.0,
+) -> int:
+    """Count how many indicators vote that the market is ranging/choppy.
+
+    Uses the same logic as is_market_choppy but returns just the vote count.
+    Total possible voters: 5 (ADX, Choppiness Index, BB Width, ATR Ratio, Variance Ratio).
+
+    Returns:
+        Number of indicators (0-5) voting for ranging/choppy market.
+    """
+    if not Config.CHOPPY_FILTER_ENABLED:
+        return 0
+
+    votes = 0
+
+    # 1. ADX
+    if adx_value < Config.MIN_ADX_THRESHOLD:
+        votes += 1
+
+    # 2. Choppiness Index
+    if choppiness_index > 0 and choppiness_index > Config.CHOPPINESS_INDEX_THRESHOLD:
+        votes += 1
+
+    # 3. Bollinger Band Width squeeze
+    if bb_upper > 0 and bb_lower > 0 and current_price > 0:
+        bb_width = bb_upper - bb_lower
+        bb_width_pct = (bb_width / current_price) * 100.0
+        if bb_width_pct < Config.BOLLINGER_SQUEEZE_THRESHOLD:
+            votes += 1
+
+    # 4. ATR Ratio
+    if current_atr > 0 and avg_atr > 0:
+        atr_ratio = current_atr / avg_atr
+        if atr_ratio < Config.ATR_RATIO_RANGING_THRESHOLD:
+            votes += 1
+
+    # 5. Variance Ratio
+    if variance_ratio > 0 and variance_ratio < Config.VARIANCE_RATIO_THRESHOLD:
+        votes += 1
+
+    return votes

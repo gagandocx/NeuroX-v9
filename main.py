@@ -18,7 +18,7 @@ import pandas as pd
 from config import Config
 from bridge import Bridge
 from tick_collector import TickCollector
-from choppy_filter import is_market_choppy
+from choppy_filter import is_market_choppy, count_choppy_votes
 from swing_levels import compute_swing_sl
 from trailing_stop import CandleCloseManager
 from momentum import compute_atr
@@ -223,6 +223,9 @@ def main():
             # 4. Signal logic: single position, candle-close exit cycle
             intel_decision = "WAITING"
             intel_reason = ""
+            computed_atr = 0.0
+            computed_avg_atr = 0.0
+            computed_variance_ratio = 1.0
 
             if ema_allowed_direction is not None and current_price > 0.0:
                 distance = abs(current_price - ea_ema9)
@@ -324,11 +327,54 @@ def main():
             # 5. Write intelligence (EMA_TREND, decision)
             ema_label = get_ema_trend_label_from_ea(ea_ema9, ea_ema15, current_price)
             adx_label = f"ADX={ea_adx:.1f}"
+
+            # Compute choppy votes for dashboard
+            choppy_vote_count = count_choppy_votes(
+                adx_value=ea_adx,
+                choppiness_index=ea_choppiness,
+                bb_upper=ea_bb_upper,
+                bb_lower=ea_bb_lower,
+                current_price=current_price,
+                current_atr=computed_atr,
+                avg_atr=computed_avg_atr,
+                variance_ratio=computed_variance_ratio,
+            )
+            choppy_label = f"{choppy_vote_count}/5 CHOPPY" if choppy_vote_count >= Config.RANGING_FILTER_AGREEMENT else f"{choppy_vote_count}/5 TRENDING"
+
+            # EMA distance for dashboard
+            ema_distance_str = ""
+            if ea_ema9 > 0.0 and current_price > 0.0:
+                dist = abs(current_price - ea_ema9)
+                ema_distance_str = f"${dist:.2f} / ${ea_max_distance:.2f}"
+
+            # Swing SL for dashboard
+            swing_sl_str = ""
+            if candle_mgr.is_tracking and hasattr(candle_mgr, '_entry_price'):
+                # Show the swing SL that was computed at entry
+                swing_sl_str = "ACTIVE"
+            else:
+                swing_sl_str = "---"
+
+            # Breakeven status for dashboard
+            be_status_str = "INACTIVE"
+            if candle_mgr.is_tracking:
+                if candle_mgr.be_moved:
+                    be_status_str = f"LOCKED ${Config.BREAKEVEN_LOCK_AMOUNT:.0f}"
+                else:
+                    be_status_str = f"ARMED ${Config.BREAKEVEN_PROFIT_THRESHOLD:.0f}+"
+
+            # Reversal status for dashboard
+            reversal_str = "CLEAR"
+
             bridge.write_intelligence(
                 strategy="EMA_TREND",
                 decision=intel_decision,
                 reason=intel_reason,
                 ema_trend=f"{ema_label} {adx_label}",
+                choppy_votes=choppy_label,
+                swing_sl=swing_sl_str,
+                breakeven_status=be_status_str,
+                reversal_status=reversal_str,
             )
 
             # 6. Sleep 100ms
