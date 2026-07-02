@@ -1,7 +1,14 @@
 {
   "task_id": "task-tight-trail-candle-fix",
   "task_description": "Add tight trailing stop after breakeven locks $1 profit, and fix candle close not closing trades in profit",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "50 candle close tests pass (39 existing + 11 new). 424 total tests pass. 18 pre-existing failures unchanged (spread_signal, bridge, optimizer, performance). MQL5 cannot be compiled in sandbox but follows existing patterns."
+  }
 }

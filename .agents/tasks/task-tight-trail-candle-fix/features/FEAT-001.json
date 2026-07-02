@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feature+fix",
   "description": "Add tight trailing stop after breakeven and fix candle close detection in both standalone EA and Python CandleCloseManager",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Add TRAIL_DISTANCE_AFTER_BE = 1.50 to config.py",
     "2. Fix Python CandleCloseManager candle close detection to use system time instead of relying solely on tick_collector._bar_start_minute",
