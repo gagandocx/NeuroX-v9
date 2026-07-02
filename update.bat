@@ -4,8 +4,8 @@ setlocal enabledelayedexpansion
 :: ------------------------------------------------------------
 ::  NeuroX v9.4 - Force Update Script
 ::  1. Force download: always downloads latest ZIP from GitHub
-::  2. Copy EA + includes to MT5 terminals
-::  3. Compile EA
+::  2. Copy EAs + includes to MT5 terminals
+::  3. Compile EAs (NeuroX_EA_v9 + NeuroX_Standalone_v9)
 :: ------------------------------------------------------------
 
 title NeuroX v9.4 - Force Update
@@ -24,6 +24,7 @@ echo.
 set "REPO_DIR=%~dp0"
 if "!REPO_DIR:~-1!"=="\" set "REPO_DIR=!REPO_DIR:~0,-1!"
 set "EA_FILE=NeuroX_EA_v9.mq5"
+set "STANDALONE_FILE=NeuroX_Standalone_v9.mq5"
 set "ZIP_URL=https://github.com/gagandocx/NeuroX-v9/archive/refs/heads/main.zip"
 set "ZIP_FILE=%TEMP%\neurox_update.zip"
 set "ZIP_EXTRACT=%TEMP%\neurox_update"
@@ -128,26 +129,34 @@ if exist "%ZIP_EXTRACT%" rd /s /q "%ZIP_EXTRACT%" >nul 2>&1
 echo.
 
 :: ------------------------------------------------------------
-:: STEP 2: Copy EA + Includes to MT5
+:: STEP 2: Copy EAs + Includes to MT5
 :: ------------------------------------------------------------
 echo [2/3] Copying files to MT5 terminals...
 echo.
 
 set "EA_SOURCE=%REPO_DIR%\%EA_FILE%"
-
-if not exist "%EA_SOURCE%" (
-    echo        [WARNING] %EA_FILE% not found. Skipping copy.
-    goto :skip_copy
-)
+set "STANDALONE_SOURCE=%REPO_DIR%\%STANDALONE_FILE%"
 
 :: Create directories
 if not exist "%MT5_EXPERTS%" mkdir "%MT5_EXPERTS%"
 if not exist "%MT5_INCLUDE%" mkdir "%MT5_INCLUDE%"
 if not exist "%MT5_EDITOR_INCLUDE%" mkdir "%MT5_EDITOR_INCLUDE%"
 
-:: Copy EA to MT5
-copy /Y "%EA_SOURCE%" "%MT5_EXPERTS%\" >nul 2>&1
-echo        [OK] EA copied to: %MT5_EXPERTS%
+:: Copy NeuroX EA to MT5
+if exist "%EA_SOURCE%" (
+    copy /Y "%EA_SOURCE%" "%MT5_EXPERTS%\" >nul 2>&1
+    echo        [OK] %EA_FILE% copied to: %MT5_EXPERTS%
+) else (
+    echo        [WARNING] %EA_FILE% not found. Skipping.
+)
+
+:: Copy NeuroX Standalone to MT5
+if exist "%STANDALONE_SOURCE%" (
+    copy /Y "%STANDALONE_SOURCE%" "%MT5_EXPERTS%\" >nul 2>&1
+    echo        [OK] %STANDALONE_FILE% copied to: %MT5_EXPERTS%
+) else (
+    echo        [WARNING] %STANDALONE_FILE% not found. Skipping.
+)
 
 :: Copy includes to EA terminal
 if exist "%REPO_DIR%\Include\*.mqh" (
@@ -161,11 +170,10 @@ if exist "%REPO_DIR%\Include\*.mqh" (
     echo        [OK] Includes copied to: %MT5_EDITOR_INCLUDE% (MetaEditor)
 )
 
-:skip_copy
 echo.
 
 :: ------------------------------------------------------------
-:: STEP 3: Compile EA
+:: STEP 3: Compile EAs
 :: ------------------------------------------------------------
 echo [3/3] Compiling...
 echo.
@@ -175,26 +183,50 @@ if not defined METAEDITOR (
     goto :done
 )
 
-if not exist "%MT5_EXPERTS%\%EA_FILE%" (
-    echo        [WARNING] EA not in Experts folder. Skipping compile.
-    goto :done
-)
+:: Compile NeuroX EA
+if exist "%MT5_EXPERTS%\%EA_FILE%" (
+    set "COMPILE_TARGET=%MT5_EXPERTS%\%EA_FILE%"
+    echo        Compiling: !COMPILE_TARGET!
+    "%METAEDITOR%" /compile:"!COMPILE_TARGET!" /log >nul 2>&1
+    timeout /t 8 /nobreak >nul
 
-set "COMPILE_TARGET=%MT5_EXPERTS%\%EA_FILE%"
-echo        Compiling: !COMPILE_TARGET!
-"%METAEDITOR%" /compile:"!COMPILE_TARGET!" /log >nul 2>&1
-timeout /t 8 /nobreak >nul
-
-set "LOG_FILE=%MT5_EXPERTS%\NeuroX_EA_v9.log"
-if exist "!LOG_FILE!" (
-    findstr /i " error " "!LOG_FILE!" >nul
-    if !errorlevel! equ 0 (
-        echo        [WARNING] Compilation has errors. Check log.
+    set "LOG_FILE=%MT5_EXPERTS%\NeuroX_EA_v9.log"
+    if exist "!LOG_FILE!" (
+        findstr /i " error " "!LOG_FILE!" >nul
+        if !errorlevel! equ 0 (
+            echo        [WARNING] %EA_FILE% compilation has errors. Check log.
+        ) else (
+            echo        [OK] %EA_FILE% compiled successfully.
+        )
     ) else (
-        echo        [OK] EA compiled successfully.
+        echo        [OK] %EA_FILE% compile complete.
     )
 ) else (
-    echo        [OK] Compile complete.
+    echo        [WARNING] %EA_FILE% not in Experts folder. Skipping compile.
+)
+
+echo.
+
+:: Compile NeuroX Standalone
+if exist "%MT5_EXPERTS%\%STANDALONE_FILE%" (
+    set "COMPILE_TARGET=%MT5_EXPERTS%\%STANDALONE_FILE%"
+    echo        Compiling: !COMPILE_TARGET!
+    "%METAEDITOR%" /compile:"!COMPILE_TARGET!" /log >nul 2>&1
+    timeout /t 8 /nobreak >nul
+
+    set "LOG_FILE=%MT5_EXPERTS%\NeuroX_Standalone_v9.log"
+    if exist "!LOG_FILE!" (
+        findstr /i " error " "!LOG_FILE!" >nul
+        if !errorlevel! equ 0 (
+            echo        [WARNING] %STANDALONE_FILE% compilation has errors. Check log.
+        ) else (
+            echo        [OK] %STANDALONE_FILE% compiled successfully.
+        )
+    ) else (
+        echo        [OK] %STANDALONE_FILE% compile complete.
+    )
+) else (
+    echo        [WARNING] %STANDALONE_FILE% not in Experts folder. Skipping compile.
 )
 
 :done
