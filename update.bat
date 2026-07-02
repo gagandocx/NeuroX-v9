@@ -106,9 +106,8 @@ echo        [OK] ZIP extracted successfully.
 
 :: Copy all files from extracted folder to REPO_DIR (force overwrite)
 echo        Copying files (force overwrite)...
-robocopy "%ZIP_EXTRACT%\NeuroX-v9-main" "%REPO_DIR%" /E /IS /IT /NFL /NDL /NJH /NJS >nul 2>&1
-:: Robocopy exit codes 0-7 are success (various copy scenarios)
-if !ERRORLEVEL! geq 8 (
+xcopy "%ZIP_EXTRACT%\NeuroX-v9-main\*" "%REPO_DIR%\" /E /Y /Q >nul
+if !ERRORLEVEL! neq 0 (
     echo        [ERROR] Failed to copy files from ZIP.
     goto :error_exit
 )
