@@ -1,0 +1,7 @@
+{
+  "task_id": "task-rewrite-standalone-ea",
+  "task_description": "Complete rewrite of NeuroX_Standalone_v9.mq5 to implement the exact same strategy as the Python-derived main EA (50 EMA trend filter, 9 EMA entry range, 5-indicator choppy filter, swing/EMA SL, candle-close exit only in profit, $5 breakeven, reversal detection, full dashboard) - entirely self-contained in MQL5 with zero Python dependency",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

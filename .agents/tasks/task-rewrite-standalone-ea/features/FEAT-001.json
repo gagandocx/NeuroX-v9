@@ -1,0 +1,49 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Complete rewrite of NeuroX_Standalone_v9.mq5 to implement the exact same strategy as the Python-derived main EA (main.py + config.py + choppy_filter.py + trailing_stop.py + swing_levels.py), but entirely self-contained in a single MQL5 file with zero Python dependency. The new EA must compute all indicators natively using MT5 built-in functions (iMA, iATR, iADX, iBands) plus manual implementations of Choppiness Index and Variance Ratio.",
+  "status": "in_progress",
+  "steps": [
+    "1. Replace all input parameters in NeuroX_Standalone_v9.mq5 with new inputs matching config.py values: InpMagicNumber=20250629, InpLotSize=0.10, InpMaxPositions=1, InpCooldownSeconds=1, InpEmergencyLoss=50.0, InpEmaTrendPeriod=50, InpEmaTrendEnabled=true, InpEmaEntryPeriod=9, InpEmaMaxDistance=0.80, InpEmaSlPeriod=60, InpEmaSlEnabled=true, InpEmaSlMinDistance=0.50, InpSwingSlLookback=10, InpSwingSlMinDistance=0.50, InpBreakevenProfitThreshold=5.00, InpBreakevenLockAmount=1.00, InpContractSize=100, InpChoppyFilterEnabled=true, InpMinADXThreshold=20.0, InpChoppinessThreshold=61.8, InpBBWidthSqueezeMult=0.5, InpATRRatioThreshold=0.75, InpVarianceRatioThreshold=0.5, InpRangingFilterAgreement=2, InpReversalEnabled=true, InpReversalBodyMin=0.40, InpReversalBodyRatio=0.70, InpReversalATRMult=1.5, InpShowDashboard=true, InpDashboardScale=110",
+    "2. Create indicator handle globals (g_ema9Handle, g_ema50Handle, g_ema60Handle, g_atrHandle, g_adxHandle, g_bbHandle) initialized in OnInit() using iMA(_Symbol,PERIOD_M1,9,...), iMA(_Symbol,PERIOD_M1,50,...), iMA(_Symbol,PERIOD_M1,60,...), iATR(_Symbol,PERIOD_M1,14,...), iADX(_Symbol,PERIOD_M5,14), iBands(_Symbol,PERIOD_M1,20,2,...). Release all handles in OnDeinit().",
+    "3. Implement the 50 EMA + 9 EMA trend filter logic: compute current price vs both EMAs. If price > EMA50 AND price > EMA9 => allowed direction is BUY only. If price < EMA50 AND price < EMA9 => allowed direction is SELL only. If conflicting (price between EMAs) => no trade allowed. This mirrors the logic in main.py lines 160-183.",
+    "4. Implement the EMA 9 entry range filter: compute distance = |price - EMA9|. If distance > InpEmaMaxDistance ($0.80), block the trade. This mirrors main.py line 202.",
+    "5. Implement the 5-indicator choppy market filter voting system (matching choppy_filter.py exactly): (a) ADX < 20 from iADX on M5, (b) Choppiness Index > 61.8 computed manually from ATR sum / (highest high - lowest low) over 14 bars * 100/ln(14), (c) Bollinger Band width squeeze: (bb_upper - bb_lower)/price*100 < 0.5, (d) ATR Ratio: current_atr/avg_atr < 0.75, (e) Variance Ratio < 0.5 computed from close price increments. If 2+ votes agree => market is choppy, no trade.",
+    "6. Implement Choppiness Index computation manually: CI = 100 * ln(sum_of_ATR_over_N_bars / (highest_high - lowest_low)) / ln(N) where N=14 (InpChoppinessPeriod). Use iATR values or compute true range manually from M1 bars.",
+    "7. Implement Variance Ratio computation: get last 20 close prices from M1 bars, compute increments = diff(closes), var_increments = variance(increments), full_move = close[-1] - close[0], expected_walk_var = n * var_increments, actual_walk_var = full_move^2, variance_ratio = actual/expected. This mirrors the computation in main.py lines 188-198.",
+    "8. Implement fractal-based swing high/low detection for SL placement (matching swing_levels.py): scan last InpSwingSlLookback (10) M1 bars. A swing high is a bar whose High > width bars on each side (width=2). A swing low is a bar whose Low < width bars on each side. For BUY: SL at last swing low. For SELL: SL at last swing high. Enforce minimum distance InpSwingSlMinDistance ($0.50). Fallback to min distance if no swing found.",
+    "9. Implement EMA-based SL as alternative (configurable via InpEmaSlEnabled): when enabled, SL is placed at the 60 EMA level instead of swing high/low. Enforce minimum SL distance of InpEmaSlMinDistance ($0.50). If EMA SL is disabled, use swing SL.",
+    "10. Implement new bar detection for candle-close exit: track the last known bar time. On each tick, compare iTime(_Symbol,PERIOD_M1,0) with stored last bar time. If different, a new bar has formed (previous candle closed). When candle closes: if position is in profit (actual $ PnL > 0), close the position. If in loss, keep position open and let SL protect.",
+    "11. Implement $5 actual PnL breakeven logic (matching trailing_stop.py _compute_pnl and _check_breakeven): compute actual_pnl = price_diff * lot_size * contract_size. When actual_pnl >= $5.00 (InpBreakevenProfitThreshold), move SL to entry + $1.00 (InpBreakevenLockAmount) for BUY or entry - $1.00 for SELL. Never widen SL (only tighten). Track whether BE has been applied per position.",
+    "12. Implement advanced M1 reversal detection (matching trailing_stop.py _check_reversal): on each tick, analyze the current forming candle (bar index 0). Check: body = |close-open| >= InpReversalBodyMin ($0.40), body_ratio = body/range >= InpReversalBodyRatio (0.70), candle range >= InpReversalATRMult (1.5) * average range of last 10 completed bars, and candle direction is against the trade. If all conditions met, close the position immediately (early cut).",
+    "13. Implement entry logic: when allowed_direction is determined (from step 3), EMA distance is OK (step 4), market is not choppy (step 5), no open position, and cooldown elapsed => open a market order with computed SL (from step 8 or 9), no TP (NO_TP=true). Use CTrade.Buy() or CTrade.Sell() with the SL level.",
+    "14. Implement emergency close: if total floating loss of all positions with this magic number exceeds InpEmergencyLoss ($50), close all positions immediately.",
+    "15. Implement full dashboard showing all strategy information in a panel (matching Include/NeuroX_Dashboard.mqh layout): Title 'NeuroX v9 Standalone', sections for STRATEGY (50 EMA Trend status, EMA Alignment, EMA 9 direction, Market Filter votes X/5, EMA Distance current/max, SL Level, Breakeven status, Candle Close countdown, Reversal status, Decision), POSITION (open count, floating P/L), DAILY P&L (realized, W/L, win rate). Use OBJ_LABEL and OBJ_RECTANGLE_LABEL with 'NXS_' prefix. Include all color coding: green for bullish/positive, red for bearish/negative, orange for conflicting, yellow for warmup/armed.",
+    "16. Implement daily stats tracking: track trades_today, wins, losses, realized_pnl with day rollover reset. Update stats when positions are closed (including by SL hit detection via deal history).",
+    "17. Implement SL-hit detection: on each tick, check if tracked positions still exist. If a position disappears (broker closed it via SL), look up deal history to get the closed profit and update daily stats.",
+    "18. Wire everything together in OnTick(): (a) check day rollover, (b) read all indicator values, (c) determine allowed direction, (d) check filters, (e) manage existing positions (breakeven, reversal check), (f) check candle close for exit, (g) try entry if conditions met, (h) check emergency close, (i) update dashboard. Use OnInit() for handle creation and state initialization, OnDeinit() for cleanup."
+  ],
+  "acceptance_criteria": [
+    "NeuroX_Standalone_v9.mq5 is a single self-contained MQL5 file with no external includes beyond Trade\\Trade.mqh and Trade\\PositionInfo.mqh",
+    "All 8 strategy components are implemented: 50 EMA trend filter, 9 EMA entry range, 5-indicator choppy filter, swing/EMA SL, candle-close exit (only in profit), $5 breakeven, reversal detection, full dashboard",
+    "Configuration values match config.py exactly: EMA_MAX_DISTANCE=0.80, BREAKEVEN_PROFIT_THRESHOLD=5.00, BREAKEVEN_LOCK_AMOUNT=1.00, CONTRACT_SIZE=100, LOT_SIZE=0.10, MIN_ADX_THRESHOLD=20.0, CHOPPINESS_INDEX_THRESHOLD=61.8, BB_WIDTH_SQUEEZE_MULT=0.5, ATR_RATIO_THRESHOLD=0.75, VARIANCE_RATIO_THRESHOLD=0.5, REVERSAL_CANDLE_BODY_MIN=0.40, REVERSAL_CANDLE_BODY_RATIO=0.70, REVERSAL_ATR_MULT=1.5, SWING_SL_LOOKBACK=10, RANGING_FILTER_AGREEMENT=2",
+    "Choppiness Index is computed manually using the formula: 100 * ln(sum_ATR_N / (HH-LL)) / ln(N)",
+    "Variance Ratio is computed manually from close price increments matching the Python implementation",
+    "Breakeven uses actual dollar PnL (price_diff * lot_size * contract_size), not raw price difference",
+    "Candle close exit only fires when position is in profit; if in loss, position stays open with SL protection",
+    "Dashboard displays all strategy info including 50 EMA trend, EMA alignment, market filter votes, EMA distance, breakeven status, candle close countdown, reversal status",
+    "File has proper MQL5 syntax: balanced braces, correct function signatures, proper use of indicator handles with CopyBuffer pattern"
+  ],
+  "verification": [
+    "Read the final NeuroX_Standalone_v9.mq5 file and verify all 8 strategy components are present",
+    "Check that all input parameter default values match the config.py values listed in the briefing",
+    "Verify Choppiness Index formula implementation uses ln(sum/range)/ln(N)*100",
+    "Verify Variance Ratio computation matches Python: actual_walk_var/expected_walk_var pattern",
+    "Verify breakeven PnL computation uses lot_size * contract_size multiplier",
+    "Verify candle close logic checks profit > 0 before closing (keeps position if in loss)",
+    "Count opening and closing braces to ensure they balance",
+    "Verify no #include statements beyond Trade\\Trade.mqh and Trade\\PositionInfo.mqh"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
