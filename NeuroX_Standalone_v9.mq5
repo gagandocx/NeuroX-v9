@@ -42,6 +42,7 @@ input double InpSwingSlMinDistance      = 5.00;          // Min Swing SL Distanc
 // Breakeven
 input double InpBreakevenProfitThreshold = 5.00;         // BE Trigger Profit ($)
 input double InpBreakevenLockAmount     = 1.00;          // BE Lock Amount ($)
+input double InpTrailDistance           = 1.50;          // Trail Distance ($) after breakeven
 
 // Choppy Market Filter
 input bool   InpChoppyFilterEnabled     = true;          // Enable Choppy Filter
@@ -537,7 +538,7 @@ double FindLastSwingLow(const double &lows[], int lookback)
 
 
 //+------------------------------------------------------------------+
-//| Manage existing positions (breakeven logic)                        |
+//| Manage existing positions (breakeven + tight trailing)             |
 //+------------------------------------------------------------------+
 void ManageExistingPositions(double currentPrice, double ema9Val,
                              double ema50Val, double ema60Val)
@@ -600,6 +601,44 @@ void ManageExistingPositions(double currentPrice, double ema9Val,
                         " SL=", DoubleToString(newSL, digits),
                         " PnL=$", DoubleToString(actualPnl, 2));
                }
+            }
+         }
+      }
+      else
+      {
+         // --- Tight trailing after breakeven ---
+         // Trail SL behind current price by InpTrailDistance
+         // Only move SL in favorable direction (never widen)
+         double trailSL = 0.0;
+         if(isBuy)
+            trailSL = NormalizeDouble(price - InpTrailDistance, digits);
+         else
+            trailSL = NormalizeDouble(price + InpTrailDistance, digits);
+
+         bool shouldTrail = false;
+         if(isBuy)
+         {
+            // For BUY: new trail SL must be higher than current SL
+            if(trailSL > currentSL && currentSL > 0.0)
+               shouldTrail = true;
+         }
+         else
+         {
+            // For SELL: new trail SL must be lower than current SL
+            if(trailSL < currentSL)
+               shouldTrail = true;
+         }
+
+         if(shouldTrail)
+         {
+            if(g_trade.PositionModify(ticket, trailSL, currentTP))
+            {
+               g_beStatus = "TRAIL $" + DoubleToString(InpTrailDistance, 2);
+               g_slLevelStr = "$" + DoubleToString(trailSL, 2);
+               Print("[NeuroX Standalone] TRAIL: Ticket ", ticket,
+                     " SL=", DoubleToString(trailSL, digits),
+                     " Price=", DoubleToString(price, digits),
+                     " Dist=$", DoubleToString(InpTrailDistance, 2));
             }
          }
       }

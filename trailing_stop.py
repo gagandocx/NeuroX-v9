@@ -4,6 +4,7 @@ NeuroX v9.0 - Candle Close Manager
 Replaces the old 4-tier TrailingStopManager. New system:
 - Trades close at M1 candle close (when minute changes)
 - $5 profit breakeven: moves SL to entry + $1
+- Tight trailing after breakeven: trails by TRAIL_DISTANCE_AFTER_BE
 - Advanced M1 reversal detection for early loss cutting
 - Runs on 100ms interval like old trailing stop
 """
@@ -11,6 +12,7 @@ Replaces the old 4-tier TrailingStopManager. New system:
 import time
 import logging
 import threading
+from datetime import datetime
 from typing import Optional, Callable, List
 
 from config import Config
@@ -65,7 +67,9 @@ class CandleCloseManager:
 
         # Candle tracking
         self._last_bar_minute: Optional[int] = None
+        self._last_system_minute: Optional[int] = None  # System time minute for candle detection
         self._be_moved = False  # Whether breakeven has been applied
+        self._last_trail_sl: float = 0.0  # Last trailing SL level after BE
 
         # Close-fired flag for race prevention
         self._close_fired = threading.Event()
@@ -108,11 +112,14 @@ class CandleCloseManager:
             self._ticket = ticket
             self._entry_time = time.time()
             self._be_moved = False
+            self._last_trail_sl = 0.0
             # Snapshot the current bar minute at entry
             if self._get_bar_minute:
                 self._last_bar_minute = self._get_bar_minute()
             else:
                 self._last_bar_minute = None
+            # Snapshot system time minute for candle close detection
+            self._last_system_minute = datetime.now().minute
         self._close_fired.clear()
         logger.info(
             f"[CandleClose] Tracking: {direction} @ ${entry_price:.2f} ticket={ticket}"
@@ -127,7 +134,9 @@ class CandleCloseManager:
             self._ticket = ""
             self._entry_time = 0.0
             self._last_bar_minute = None
+            self._last_system_minute = None
             self._be_moved = False
+            self._last_trail_sl = 0.0
         self._close_fired.clear()
 
     @property
@@ -165,29 +174,50 @@ class CandleCloseManager:
         """
         Check if a new M1 candle has closed (minute changed).
 
-        NOTE: Known limitation - single-minute resolution creates a race window.
-        If the 100ms loop misses a brief minute boundary (e.g., system load
-        delay > 1 second), the signal fires on the following check but may be
-        off by one candle. This is unlikely under normal conditions and
-        acceptable given the 100ms check interval.
+        Uses BOTH the tick collector's bar minute (if available) and system
+        time as a fallback. This ensures candle close fires even if no ticks
+        arrive during a minute boundary (e.g., low liquidity periods).
 
         Returns:
             True if candle close detected, False otherwise.
         """
-        if self._get_bar_minute is None:
+        # Primary: use system time to detect minute change
+        current_system_minute = datetime.now().minute
+
+        if self._last_system_minute is None:
+            self._last_system_minute = current_system_minute
+            # Also sync bar minute if available
+            if self._get_bar_minute:
+                bar_min = self._get_bar_minute()
+                if bar_min is not None:
+                    self._last_bar_minute = bar_min
             return False
 
-        current_minute = self._get_bar_minute()
-        if current_minute is None:
-            return False
-
-        if self._last_bar_minute is None:
-            self._last_bar_minute = current_minute
-            return False
-
-        if current_minute != self._last_bar_minute:
-            self._last_bar_minute = current_minute
+        # Detect minute change via system clock
+        if current_system_minute != self._last_system_minute:
+            self._last_system_minute = current_system_minute
+            # Also update bar minute tracking to stay in sync
+            if self._get_bar_minute:
+                bar_min = self._get_bar_minute()
+                if bar_min is not None:
+                    self._last_bar_minute = bar_min
             return True
+
+        # Secondary: check tick collector bar minute (may update before system clock
+        # if tick arrives exactly at boundary)
+        if self._get_bar_minute is not None:
+            current_minute = self._get_bar_minute()
+            if current_minute is None:
+                return False
+
+            if self._last_bar_minute is None:
+                self._last_bar_minute = current_minute
+                return False
+
+            if current_minute != self._last_bar_minute:
+                self._last_bar_minute = current_minute
+                self._last_system_minute = current_system_minute
+                return True
 
         return False
 
@@ -212,6 +242,44 @@ class CandleCloseManager:
         elif self._direction == "SELL":
             return self._entry_price - lock
         return self._entry_price
+
+    def _compute_trail_sl(self, current_price: float) -> Optional[float]:
+        """
+        Compute tight trailing SL after breakeven has been applied.
+
+        After BE locks $1 profit, the trail kicks in: SL trails behind
+        current price by TRAIL_DISTANCE_AFTER_BE. Trail only moves in
+        favorable direction (never widens the SL).
+
+        Returns:
+            New SL price if trail should move, None if no move needed.
+        """
+        if not self._be_moved:
+            return None
+
+        trail_distance = Config.TRAIL_DISTANCE_AFTER_BE
+
+        if self._direction == "BUY":
+            # For BUY: SL = current_price - trail_distance
+            new_sl = current_price - trail_distance
+            # Never move SL below the last trail level or BE level
+            be_sl = self._get_be_sl_price()
+            min_sl = max(be_sl, self._last_trail_sl)
+            if new_sl > min_sl:
+                return new_sl
+        elif self._direction == "SELL":
+            # For SELL: SL = current_price + trail_distance
+            new_sl = current_price + trail_distance
+            # Never move SL above the last trail level or BE level
+            be_sl = self._get_be_sl_price()
+            if self._last_trail_sl > 0:
+                max_sl = min(be_sl, self._last_trail_sl)
+            else:
+                max_sl = be_sl
+            if new_sl < max_sl:
+                return new_sl
+
+        return None
 
     def _check_reversal(self, current_price: float) -> bool:
         """
@@ -311,6 +379,9 @@ class CandleCloseManager:
         Only marks _be_moved=True after a successful write. If the write
         fails (exception), _be_moved remains False so the next loop
         iteration will retry the breakeven move.
+
+        For trailing SL moves, updates _last_trail_sl to track the
+        tightest SL level achieved.
         """
         logger.info(
             f"[CandleClose] MODIFY_SL ticket={ticket} new_sl=${new_sl:.2f} reason={reason}"
@@ -325,7 +396,10 @@ class CandleCloseManager:
             )
             # Only mark as moved after successful write
             with self._lock:
-                self._be_moved = True
+                if reason == "breakeven_5_lock_1":
+                    self._be_moved = True
+                # Update trailing SL level
+                self._last_trail_sl = new_sl
         except Exception as e:
             logger.error(f"[CandleClose] Failed to write SL modify: {e}")
             # _be_moved stays False, will retry on next iteration
@@ -346,6 +420,7 @@ class CandleCloseManager:
                 fire_reason: Optional[str] = None
                 fire_ticket: str = ""
                 modify_sl: Optional[float] = None
+                modify_reason: str = ""
 
                 with self._lock:
                     if not self._tracking:
@@ -368,13 +443,21 @@ class CandleCloseManager:
                     # Priority 3: Breakeven move
                     elif self._check_breakeven(current_price):
                         modify_sl = self._get_be_sl_price()
+                        modify_reason = "breakeven_5_lock_1"
                         fire_ticket = self._ticket
+                    # Priority 4: Tight trailing after breakeven
+                    elif self._be_moved:
+                        trail_sl = self._compute_trail_sl(current_price)
+                        if trail_sl is not None:
+                            modify_sl = trail_sl
+                            modify_reason = "tight_trail_after_be"
+                            fire_ticket = self._ticket
 
                 if fire_reason is not None:
                     self._fire_close(fire_reason, fire_ticket)
                 elif modify_sl is not None:
                     self._fire_modify_sl(
-                        fire_ticket, modify_sl, "breakeven_5_lock_1"
+                        fire_ticket, modify_sl, modify_reason
                     )
 
             except Exception as e:

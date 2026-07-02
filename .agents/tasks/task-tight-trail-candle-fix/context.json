@@ -1,0 +1,8 @@
+{
+  "project_type": "Python HFT trading bot with MQL5 EA bridge",
+  "language": "Python 3.x + MQL5",
+  "build_command": "N/A",
+  "test_command": "cd /projects/sandbox/NeuroX-v9 && python -m pytest tests/ -v --ignore=tests/test_tick_collector.py",
+  "verification_instructions": "Run pytest; existing tests pass, 5 pre-existing failures in test_tick_collector. All new tests must pass.",
+  "setup_instructions": "pip install numpy pandas pytest"
+}

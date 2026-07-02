@@ -85,6 +85,7 @@ input double   InpPartialT3Offset  = 0.60;      // Partial entry T3 offset ($)
 // ═══════════════════════════════════════════════════════════════════
 input double   InpBreakevenProfit  = 5.00;      // Profit $ to move SL to breakeven
 input double   InpBEProfitBuffer   = 0.05;      // Extra $ above entry for BE SL
+input double   InpTrailAfterBE     = 1.50;      // Trail distance ($) after breakeven
 input double   InpTrailStart       = 0.60;      // Profit $ to start trailing
 input double   InpTrailTight       = 1.20;      // Profit $ for tight trail
 input double   InpTrailVeryTight   = 2.00;      // Profit $ for very tight trail

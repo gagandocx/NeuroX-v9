@@ -62,6 +62,9 @@ class Config:
     BREAKEVEN_PROFIT_THRESHOLD = 5.00     # $ profit to trigger BE move
     BREAKEVEN_LOCK_AMOUNT = 1.00          # $ profit locked at breakeven
 
+    # Tight trailing after breakeven
+    TRAIL_DISTANCE_AFTER_BE = 1.50        # $ trail distance from current price after BE applied
+
     # Advanced M1 Reversal Detection (early loss cutting)
     REVERSAL_DETECTION_ENABLED = True
     REVERSAL_CANDLE_BODY_MIN = 0.40       # Minimum candle body size ($)

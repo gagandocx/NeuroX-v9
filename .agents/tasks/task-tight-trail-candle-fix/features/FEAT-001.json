@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "feature+fix",
+  "description": "Add tight trailing stop after breakeven and fix candle close detection in both standalone EA and Python CandleCloseManager",
+  "status": "in_progress",
+  "steps": [
+    "1. Add TRAIL_DISTANCE_AFTER_BE = 1.50 to config.py",
+    "2. Fix Python CandleCloseManager candle close detection to use system time instead of relying solely on tick_collector._bar_start_minute",
+    "3. Add tight trailing logic to Python CandleCloseManager after breakeven is applied",
+    "4. Add input InpTrailDistance to NeuroX_Standalone_v9.mq5 and implement tight trailing after BE",
+    "5. Add trailing after BE in Include/NeuroX_Position.mqh ManageOpenPositions()",
+    "6. Add tests for tight trailing logic",
+    "7. Verify tests pass"
+  ],
+  "acceptance_criteria": [
+    "Config.TRAIL_DISTANCE_AFTER_BE = 1.50 exists",
+    "CandleCloseManager detects candle close using system time (not solely tick_collector._bar_start_minute)",
+    "After BE moves SL to entry+$1, trailing kicks in and trails by configurable distance",
+    "Trail only moves SL in favorable direction (never widens)",
+    "Standalone EA has InpTrailDistance input parameter",
+    "All existing tests pass, new tests for trailing pass"
+  ],
+  "verification": [
+    "python3 -m pytest tests/test_candle_close.py -v",
+    "python3 -m pytest tests/ --tb=short -q --ignore=tests/test_tick_collector.py"
+  ],
+  "blocked_reason": null
+}

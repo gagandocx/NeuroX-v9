@@ -571,3 +571,240 @@ class TestConfigValues:
 
     def test_lot_size(self):
         assert Config.LOT_SIZE == 0.10
+
+    def test_trail_distance_after_be(self):
+        assert Config.TRAIL_DISTANCE_AFTER_BE == 1.50
+
+
+class TestTightTrailingAfterBreakeven:
+    """Test tight trailing stop that activates after breakeven is applied."""
+
+    def test_trail_not_active_before_be(self):
+        """Trailing should not compute SL when BE has not been applied."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2001.0,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        # BE not moved yet
+        assert mgr._be_moved is False
+        result = mgr._compute_trail_sl(2001.0)
+        assert result is None
+
+    def test_trail_buy_moves_sl_up(self):
+        """After BE on BUY, trail should move SL up as price moves up."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2002.0,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        mgr._be_moved = True
+        mgr._last_trail_sl = 2001.0  # BE SL level
+
+        # Price at 2002.0 -> trail SL = 2002.0 - 1.50 = 2000.50
+        # But BE SL is 2001.0 (entry + $1), trail must be above that
+        # 2000.50 < 2001.0 -> no move
+        result = mgr._compute_trail_sl(2002.0)
+        assert result is None
+
+    def test_trail_buy_moves_above_be_level(self):
+        """Trail should return new SL when it exceeds BE SL and last trail SL."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2003.0,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        mgr._be_moved = True
+        mgr._last_trail_sl = 2001.0  # BE SL level (entry + $1)
+
+        # Price at 2003.0 -> trail SL = 2003.0 - 1.50 = 2001.50
+        # 2001.50 > max(BE SL=2001.0, last_trail=2001.0) = 2001.0 -> MOVE
+        result = mgr._compute_trail_sl(2003.0)
+        assert result == 2003.0 - Config.TRAIL_DISTANCE_AFTER_BE  # 2001.50
+
+    def test_trail_buy_never_widens(self):
+        """Trail SL on BUY should never move below current trail level."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2002.0,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        mgr._be_moved = True
+        mgr._last_trail_sl = 2001.80  # Previously trailed to 2001.80
+
+        # Price drops to 2002.0 -> trail SL = 2002.0 - 1.50 = 2000.50
+        # 2000.50 < last_trail_sl=2001.80 -> no move (would widen)
+        result = mgr._compute_trail_sl(2002.0)
+        assert result is None
+
+    def test_trail_sell_moves_sl_down(self):
+        """After BE on SELL, trail should move SL down as price moves down."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 1997.0,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("SELL", 2000.0, "T1")
+        mgr._be_moved = True
+        mgr._last_trail_sl = 0.0  # Not yet trailed
+
+        # BE SL for SELL = entry - $1 = 1999.0
+        # Price at 1997.0 -> trail SL = 1997.0 + 1.50 = 1998.50
+        # 1998.50 < min(BE_SL=1999.0, no last trail) = 1999.0 -> MOVE
+        result = mgr._compute_trail_sl(1997.0)
+        assert result == 1997.0 + Config.TRAIL_DISTANCE_AFTER_BE  # 1998.50
+
+    def test_trail_sell_never_widens(self):
+        """Trail SL on SELL should never move above current trail level."""
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 1998.0,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("SELL", 2000.0, "T1")
+        mgr._be_moved = True
+        mgr._last_trail_sl = 1998.20  # Previously trailed to 1998.20
+
+        # Price at 1998.0 -> trail SL = 1998.0 + 1.50 = 1999.50
+        # 1999.50 > last_trail_sl=1998.20 -> no move (would widen)
+        result = mgr._compute_trail_sl(1998.0)
+        assert result is None
+
+    def test_trail_fires_modify_sl_via_monitor(self):
+        """Monitor thread should fire MODIFY_SL for trailing after BE."""
+        exit_signals = []
+
+        def write_exit(**kwargs):
+            exit_signals.append(kwargs)
+            return True
+
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2003.0,  # BUY at 2000, price = 2003
+            write_exit_fn=write_exit,
+            get_bar_minute_fn=lambda: 30,
+            check_interval_ms=10,
+        )
+
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        # Simulate BE already applied
+        mgr._be_moved = True
+        mgr._last_trail_sl = 2001.0  # BE SL
+
+        mgr.start()
+        time.sleep(0.1)
+        mgr.stop()
+
+        # Should have fired a MODIFY_SL for trailing
+        trail_signals = [s for s in exit_signals if s.get("reason") == "tight_trail_after_be"]
+        assert len(trail_signals) >= 1
+        # Trail SL = 2003.0 - 1.50 = 2001.50
+        assert trail_signals[0]["new_sl"] == 2001.50
+        assert trail_signals[0]["action"] == "MODIFY_SL"
+
+    def test_trail_updates_last_trail_sl(self):
+        """After trailing fires, _last_trail_sl should be updated."""
+        exit_signals = []
+
+        def write_exit(**kwargs):
+            exit_signals.append(kwargs)
+            return True
+
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2003.0,
+            write_exit_fn=write_exit,
+            get_bar_minute_fn=lambda: 30,
+            check_interval_ms=10,
+        )
+
+        mgr.start_tracking("BUY", 2000.0, "T1")
+        mgr._be_moved = True
+        mgr._last_trail_sl = 2001.0
+
+        mgr.start()
+        time.sleep(0.1)
+        mgr.stop()
+
+        # _last_trail_sl should have been updated
+        assert mgr._last_trail_sl == 2001.50
+
+
+class TestCandleCloseWithSystemTime:
+    """Test that candle close detection works using system time fallback."""
+
+    def test_candle_close_works_without_bar_minute_fn(self):
+        """Candle close should detect minute changes using system time even without bar_minute_fn."""
+        from unittest.mock import patch
+        from datetime import datetime as dt
+
+        exit_signals = []
+
+        def write_exit(**kwargs):
+            exit_signals.append(kwargs)
+            return True
+
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2001.0,  # In profit
+            write_exit_fn=write_exit,
+            get_bar_minute_fn=None,  # No bar minute function
+            check_interval_ms=10,
+        )
+
+        # Patch datetime.now() to simulate minute change
+        fake_time_1 = dt(2025, 7, 3, 10, 30, 50)  # minute=30
+        fake_time_2 = dt(2025, 7, 3, 10, 31, 0)   # minute=31
+
+        with patch("trailing_stop.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_time_1
+            mgr.start_tracking("BUY", 2000.0, "T1")
+
+            # First check - same minute, no close
+            with mgr._lock:
+                result = mgr._check_candle_close()
+            assert result is False
+
+            # Change to new minute
+            mock_dt.now.return_value = fake_time_2
+            with mgr._lock:
+                result = mgr._check_candle_close()
+            assert result is True
+
+    def test_candle_close_system_time_fires_even_if_bar_minute_stale(self):
+        """If tick collector bar minute is stale, system time still detects candle close."""
+        from unittest.mock import patch
+        from datetime import datetime as dt
+
+        exit_signals = []
+
+        def write_exit(**kwargs):
+            exit_signals.append(kwargs)
+            return True
+
+        # bar_minute_fn always returns 30 (stale - tick collector not updating)
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2001.0,
+            write_exit_fn=write_exit,
+            get_bar_minute_fn=lambda: 30,  # Stale!
+            check_interval_ms=10,
+        )
+
+        fake_time_1 = dt(2025, 7, 3, 10, 30, 50)
+        fake_time_2 = dt(2025, 7, 3, 10, 31, 0)
+
+        with patch("trailing_stop.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_time_1
+            mgr.start_tracking("BUY", 2000.0, "T1")
+
+            # Same minute
+            with mgr._lock:
+                result = mgr._check_candle_close()
+            assert result is False
+
+            # System minute changes even though bar_minute stays 30
+            mock_dt.now.return_value = fake_time_2
+            with mgr._lock:
+                result = mgr._check_candle_close()
+            assert result is True

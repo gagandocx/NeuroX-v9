@@ -343,7 +343,42 @@ void ManageOpenPositions()
                           DoubleToString(beProfit, 2), ")");
                 }
             }
-            trailInfo = "BE+ P:" + DoubleToString(profit, 2);
+
+            // --- Tight trailing after breakeven ---
+            // After BE is locked, trail SL behind price by InpTrailAfterBE
+            double trailSL = 0;
+            if(isBuy)
+                trailSL = NormalizeDouble(currentPrice - InpTrailAfterBE, digits);
+            else
+                trailSL = NormalizeDouble(currentPrice + InpTrailAfterBE, digits);
+
+            // Refresh current SL (may have been updated by BE move above)
+            if(g_position.SelectByTicket(ticket))
+                currentSL = g_position.StopLoss();
+
+            bool shouldTrail = false;
+            if(isBuy)
+            {
+                if(trailSL > currentSL && currentSL > 0)
+                    shouldTrail = true;
+            }
+            else
+            {
+                if(trailSL < currentSL)
+                    shouldTrail = true;
+            }
+
+            if(shouldTrail)
+            {
+                if(g_trade.PositionModify(ticket, trailSL, currentTP))
+                {
+                    Print("[NeuroX] TRAIL: Ticket ", ticket,
+                          " SL=", DoubleToString(trailSL, digits),
+                          " Price=", DoubleToString(currentPrice, digits),
+                          " Dist=$", DoubleToString(InpTrailAfterBE, 2));
+                }
+            }
+            trailInfo = "TRAIL P:" + DoubleToString(profit, 2);
         }
         else
         {
