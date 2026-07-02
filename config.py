@@ -44,7 +44,7 @@ class Config:
     # Trailing stop tiers: DEPRECATED - replaced by candle-close exit system
     # Kept for backward compatibility with any code that references it
     TRAIL_TIERS = [
-        (5.00, 1.00),   # After $5.00 profit: lock $1.00 (breakeven)
+        (6.00, 5.00),   # After $6.00 profit: lock $5.00 (breakeven)
     ]
 
     # ═══════════════════════════════════════════════════════════════════
@@ -59,11 +59,11 @@ class Config:
     SWING_SL_MIN_DISTANCE = 5.00          # Minimum SL distance from entry ($) - safety floor if swing too close
 
     # Breakeven logic
-    BREAKEVEN_PROFIT_THRESHOLD = 5.00     # $ profit to trigger BE move
-    BREAKEVEN_LOCK_AMOUNT = 1.00          # $ profit locked at breakeven
+    BREAKEVEN_PROFIT_THRESHOLD = 6.00     # Trade PnL ($) to trigger BE move (when PnL >= $6)
+    BREAKEVEN_LOCK_AMOUNT = 5.00          # Profit ($) to lock at breakeven (locks $5 profit)
 
     # Tight trailing after breakeven
-    TRAIL_DISTANCE_AFTER_BE = 1.50        # $ trail distance from current price after BE applied
+    TRAIL_DISTANCE_AFTER_BE = 1.00        # Raw price distance ($) behind market after BE applied
 
     # Advanced M1 Reversal Detection (early loss cutting)
     REVERSAL_DETECTION_ENABLED = True

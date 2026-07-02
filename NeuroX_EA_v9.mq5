@@ -83,9 +83,10 @@ input double   InpPartialT3Offset  = 0.60;      // Partial entry T3 offset ($)
 // ═══════════════════════════════════════════════════════════════════
 // TRAILING STOP PARAMETERS
 // ═══════════════════════════════════════════════════════════════════
-input double   InpBreakevenProfit  = 5.00;      // Profit $ to move SL to breakeven
+input double   InpBreakevenProfit  = 6.00;      // Trade PnL ($) to trigger breakeven move
+input double   InpBreakevenLock    = 5.00;      // BE Lock: profit ($) to lock when BE triggers
 input double   InpBEProfitBuffer   = 0.05;      // Extra $ above entry for BE SL
-input double   InpTrailAfterBE     = 1.50;      // Trail distance ($) after breakeven
+input double   InpTrailAfterBE     = 1.00;      // Trail: raw price distance ($) behind market after BE
 input double   InpTrailStart       = 0.60;      // Profit $ to start trailing
 input double   InpTrailTight       = 1.20;      // Profit $ for tight trail
 input double   InpTrailVeryTight   = 2.00;      // Profit $ for very tight trail

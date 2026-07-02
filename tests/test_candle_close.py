@@ -156,16 +156,49 @@ class TestCandleCloseDetection:
 
 
 class TestBreakevenLogic:
-    """Test $5 profit breakeven at $1.
+    """Test $6 PnL breakeven triggering $5 profit lock.
 
     With LOT_SIZE=0.10 and CONTRACT_SIZE=100, the multiplier is 10.
-    So a $0.50 price move = $5.00 actual PnL (meets the $5 threshold).
+    So a $0.60 price move = $6.00 actual PnL (meets the $6 threshold).
     """
 
-    def test_be_triggers_at_5_profit_buy(self):
-        """Should trigger BE move when actual PnL >= $5 for BUY.
+    def test_be_triggers_at_6_profit_buy(self):
+        """Should trigger BE move when actual PnL >= $6 for BUY.
 
-        Price must move $0.50 for actual PnL = 0.50 * 0.10 * 100 = $5.00.
+        Price must move $0.61 for actual PnL = 0.61 * 0.10 * 100 = $6.10 (>= $6).
+        """
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 2000.61,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("BUY", 2000.0, "T1")
+
+        # Price at entry + $0.61 -> PnL = 0.61 * 10 = $6.10
+        result = mgr._check_breakeven(2000.61)
+        assert result is True
+
+    def test_be_triggers_at_6_profit_sell(self):
+        """Should trigger BE move when actual PnL >= $6 for SELL.
+
+        SELL: price must drop $0.61 for actual PnL = 0.61 * 0.10 * 100 = $6.10.
+        """
+        mgr = CandleCloseManager(
+            get_price_fn=lambda: 1999.39,
+            write_exit_fn=lambda **kw: True,
+            get_bar_minute_fn=lambda: 30,
+        )
+        mgr.start_tracking("SELL", 2000.0, "T1")
+
+        # SELL: profit = entry - current = 2000 - 1999.39 = 0.61
+        # Actual PnL = 0.61 * 10 = $6.10
+        result = mgr._check_breakeven(1999.39)
+        assert result is True
+
+    def test_be_not_triggered_below_threshold(self):
+        """Should NOT trigger BE when actual PnL < $6.
+
+        A $0.50 price move = 0.50 * 10 = $5.00 actual PnL (below $6 threshold).
         """
         mgr = CandleCloseManager(
             get_price_fn=lambda: 2000.50,
@@ -174,40 +207,7 @@ class TestBreakevenLogic:
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
 
-        # Price at entry + $0.50 -> PnL = 0.50 * 10 = $5.00
         result = mgr._check_breakeven(2000.50)
-        assert result is True
-
-    def test_be_triggers_at_5_profit_sell(self):
-        """Should trigger BE move when actual PnL >= $5 for SELL.
-
-        SELL: price must drop $0.50 for actual PnL = 0.50 * 0.10 * 100 = $5.00.
-        """
-        mgr = CandleCloseManager(
-            get_price_fn=lambda: 1999.50,
-            write_exit_fn=lambda **kw: True,
-            get_bar_minute_fn=lambda: 30,
-        )
-        mgr.start_tracking("SELL", 2000.0, "T1")
-
-        # SELL: profit = entry - current = 2000 - 1999.50 = 0.50
-        # Actual PnL = 0.50 * 10 = $5.00
-        result = mgr._check_breakeven(1999.50)
-        assert result is True
-
-    def test_be_not_triggered_below_threshold(self):
-        """Should NOT trigger BE when actual PnL < $5.
-
-        A $0.40 price move = 0.40 * 10 = $4.00 actual PnL (below $5 threshold).
-        """
-        mgr = CandleCloseManager(
-            get_price_fn=lambda: 2000.40,
-            write_exit_fn=lambda **kw: True,
-            get_bar_minute_fn=lambda: 30,
-        )
-        mgr.start_tracking("BUY", 2000.0, "T1")
-
-        result = mgr._check_breakeven(2000.40)
         assert result is False
 
     def test_be_only_fires_once(self):
@@ -225,7 +225,7 @@ class TestBreakevenLogic:
         assert mgr._check_breakeven(2001.0) is False
 
     def test_be_sl_price_buy(self):
-        """BE SL for BUY should be entry + $1."""
+        """BE SL for BUY should be entry + lockDist ($5 / (0.10*100) = $0.50)."""
         mgr = CandleCloseManager(
             get_price_fn=lambda: 2001.0,
             write_exit_fn=lambda **kw: True,
@@ -233,10 +233,10 @@ class TestBreakevenLogic:
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
         sl = mgr._get_be_sl_price()
-        assert sl == 2001.0
+        assert sl == 2000.50
 
     def test_be_sl_price_sell(self):
-        """BE SL for SELL should be entry - $1."""
+        """BE SL for SELL should be entry - lockDist ($5 / (0.10*100) = $0.50)."""
         mgr = CandleCloseManager(
             get_price_fn=lambda: 1994.0,
             write_exit_fn=lambda **kw: True,
@@ -244,13 +244,14 @@ class TestBreakevenLogic:
         )
         mgr.start_tracking("SELL", 2000.0, "T1")
         sl = mgr._get_be_sl_price()
-        assert sl == 1999.0
+        assert sl == 1999.50
 
     def test_be_fires_modify_sl_via_monitor(self):
         """Monitor thread should fire MODIFY_SL when BE threshold reached.
 
         With 0.10 lots * 100 contract = 10x multiplier.
-        Price at 2000.60 -> PnL = 0.60 * 10 = $6.00 (above $5 threshold).
+        Price at 2000.61 -> PnL = 0.61 * 10 = $6.10 (>= $6 threshold).
+        BE SL = entry + $5/(0.10*100) = 2000.0 + 0.50 = 2000.50
         """
         exit_signals = []
 
@@ -259,7 +260,7 @@ class TestBreakevenLogic:
             return True
 
         mgr = CandleCloseManager(
-            get_price_fn=lambda: 2000.60,
+            get_price_fn=lambda: 2000.61,
             write_exit_fn=write_exit,
             get_bar_minute_fn=lambda: 30,
             check_interval_ms=10,
@@ -274,8 +275,8 @@ class TestBreakevenLogic:
         # Should have fired a MODIFY_SL
         sl_signals = [s for s in exit_signals if s["action"] == "MODIFY_SL"]
         assert len(sl_signals) >= 1
-        assert sl_signals[0]["new_sl"] == 2001.0
-        assert sl_signals[0]["reason"] == "breakeven_5_lock_1"
+        assert sl_signals[0]["new_sl"] == 2000.50
+        assert sl_signals[0]["reason"] == "breakeven_6_lock_5"
 
 
 class TestReversalDetection:
@@ -546,10 +547,10 @@ class TestConfigValues:
         assert Config.SWING_SL_MIN_DISTANCE == 5.00
 
     def test_breakeven_profit_threshold(self):
-        assert Config.BREAKEVEN_PROFIT_THRESHOLD == 5.00
+        assert Config.BREAKEVEN_PROFIT_THRESHOLD == 6.00
 
     def test_breakeven_lock_amount(self):
-        assert Config.BREAKEVEN_LOCK_AMOUNT == 1.00
+        assert Config.BREAKEVEN_LOCK_AMOUNT == 5.00
 
     def test_reversal_detection_enabled(self):
         assert Config.REVERSAL_DETECTION_ENABLED is True
@@ -573,7 +574,7 @@ class TestConfigValues:
         assert Config.LOT_SIZE == 0.10
 
     def test_trail_distance_after_be(self):
-        assert Config.TRAIL_DISTANCE_AFTER_BE == 1.50
+        assert Config.TRAIL_DISTANCE_AFTER_BE == 1.00
 
 
 class TestTightTrailingAfterBreakeven:
@@ -601,11 +602,11 @@ class TestTightTrailingAfterBreakeven:
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
         mgr._be_moved = True
-        mgr._last_trail_sl = 2001.0  # BE SL level
+        mgr._last_trail_sl = 2001.0  # Previous trail level
 
-        # Price at 2002.0 -> trail SL = 2002.0 - 1.50 = 2000.50
-        # But BE SL is 2001.0 (entry + $1), trail must be above that
-        # 2000.50 < 2001.0 -> no move
+        # Price at 2002.0 -> trail SL = 2002.0 - 1.00 = 2001.0
+        # max(BE SL=2000.50, last_trail=2001.0) = 2001.0
+        # 2001.0 is NOT > 2001.0 -> no move
         result = mgr._compute_trail_sl(2002.0)
         assert result is None
 
@@ -618,12 +619,13 @@ class TestTightTrailingAfterBreakeven:
         )
         mgr.start_tracking("BUY", 2000.0, "T1")
         mgr._be_moved = True
-        mgr._last_trail_sl = 2001.0  # BE SL level (entry + $1)
+        mgr._last_trail_sl = 2001.0  # Previous trail level
 
-        # Price at 2003.0 -> trail SL = 2003.0 - 1.50 = 2001.50
-        # 2001.50 > max(BE SL=2001.0, last_trail=2001.0) = 2001.0 -> MOVE
+        # Price at 2003.0 -> trail SL = 2003.0 - 1.00 = 2002.0
+        # max(BE SL=2000.50, last_trail=2001.0) = 2001.0
+        # 2002.0 > 2001.0 -> MOVE
         result = mgr._compute_trail_sl(2003.0)
-        assert result == 2003.0 - Config.TRAIL_DISTANCE_AFTER_BE  # 2001.50
+        assert result == 2003.0 - Config.TRAIL_DISTANCE_AFTER_BE  # 2002.0
 
     def test_trail_buy_never_widens(self):
         """Trail SL on BUY should never move below current trail level."""
@@ -636,8 +638,8 @@ class TestTightTrailingAfterBreakeven:
         mgr._be_moved = True
         mgr._last_trail_sl = 2001.80  # Previously trailed to 2001.80
 
-        # Price drops to 2002.0 -> trail SL = 2002.0 - 1.50 = 2000.50
-        # 2000.50 < last_trail_sl=2001.80 -> no move (would widen)
+        # Price drops to 2002.0 -> trail SL = 2002.0 - 1.00 = 2001.0
+        # 2001.0 < last_trail_sl=2001.80 -> no move (would widen)
         result = mgr._compute_trail_sl(2002.0)
         assert result is None
 
@@ -652,11 +654,11 @@ class TestTightTrailingAfterBreakeven:
         mgr._be_moved = True
         mgr._last_trail_sl = 0.0  # Not yet trailed
 
-        # BE SL for SELL = entry - $1 = 1999.0
-        # Price at 1997.0 -> trail SL = 1997.0 + 1.50 = 1998.50
-        # 1998.50 < min(BE_SL=1999.0, no last trail) = 1999.0 -> MOVE
+        # BE SL for SELL = entry - $0.50 = 1999.50
+        # Price at 1997.0 -> trail SL = 1997.0 + 1.00 = 1998.0
+        # 1998.0 < min(BE_SL=1999.50, no last trail) = 1999.50 -> MOVE
         result = mgr._compute_trail_sl(1997.0)
-        assert result == 1997.0 + Config.TRAIL_DISTANCE_AFTER_BE  # 1998.50
+        assert result == 1997.0 + Config.TRAIL_DISTANCE_AFTER_BE  # 1998.0
 
     def test_trail_sell_never_widens(self):
         """Trail SL on SELL should never move above current trail level."""
@@ -669,8 +671,8 @@ class TestTightTrailingAfterBreakeven:
         mgr._be_moved = True
         mgr._last_trail_sl = 1998.20  # Previously trailed to 1998.20
 
-        # Price at 1998.0 -> trail SL = 1998.0 + 1.50 = 1999.50
-        # 1999.50 > last_trail_sl=1998.20 -> no move (would widen)
+        # Price at 1998.0 -> trail SL = 1998.0 + 1.00 = 1999.0
+        # 1999.0 > last_trail_sl=1998.20 -> no move (would widen)
         result = mgr._compute_trail_sl(1998.0)
         assert result is None
 
@@ -692,7 +694,7 @@ class TestTightTrailingAfterBreakeven:
         mgr.start_tracking("BUY", 2000.0, "T1")
         # Simulate BE already applied
         mgr._be_moved = True
-        mgr._last_trail_sl = 2001.0  # BE SL
+        mgr._last_trail_sl = 2001.0  # Previous trail level
 
         mgr.start()
         time.sleep(0.1)
@@ -701,8 +703,8 @@ class TestTightTrailingAfterBreakeven:
         # Should have fired a MODIFY_SL for trailing
         trail_signals = [s for s in exit_signals if s.get("reason") == "tight_trail_after_be"]
         assert len(trail_signals) >= 1
-        # Trail SL = 2003.0 - 1.50 = 2001.50
-        assert trail_signals[0]["new_sl"] == 2001.50
+        # Trail SL = 2003.0 - 1.00 = 2002.0
+        assert trail_signals[0]["new_sl"] == 2002.0
         assert trail_signals[0]["action"] == "MODIFY_SL"
 
     def test_trail_updates_last_trail_sl(self):
@@ -728,8 +730,8 @@ class TestTightTrailingAfterBreakeven:
         time.sleep(0.1)
         mgr.stop()
 
-        # _last_trail_sl should have been updated
-        assert mgr._last_trail_sl == 2001.50
+        # _last_trail_sl should have been updated to 2003.0 - 1.00 = 2002.0
+        assert mgr._last_trail_sl == 2002.0
 
 
 class TestCandleCloseWithSystemTime:

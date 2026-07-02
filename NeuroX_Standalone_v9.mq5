@@ -39,10 +39,10 @@ input double InpEmaSlMinDistance        = 5.00;          // Min EMA SL Distance 
 input int    InpSwingSlLookback         = 10;            // Swing SL Lookback Bars
 input double InpSwingSlMinDistance      = 5.00;          // Min Swing SL Distance ($) - safety floor if swing too close
 
-// Breakeven
-input double InpBreakevenProfitThreshold = 5.00;         // BE Trigger Profit ($)
-input double InpBreakevenLockAmount     = 1.00;          // BE Lock Amount ($)
-input double InpTrailDistance           = 1.50;          // Trail Distance ($) after breakeven
+// Breakeven & Trailing
+input double InpBreakevenProfitThreshold = 6.00;         // BE Trigger: trade PnL ($) to activate breakeven
+input double InpBreakevenLockAmount     = 5.00;          // BE Lock: profit ($) to lock when BE triggers
+input double InpTrailDistance           = 1.00;          // Trail: raw price distance ($) behind market after BE
 
 // Choppy Market Filter
 input bool   InpChoppyFilterEnabled     = true;          // Enable Choppy Filter

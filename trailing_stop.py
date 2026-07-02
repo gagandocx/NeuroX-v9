@@ -3,8 +3,8 @@ NeuroX v9.0 - Candle Close Manager
 
 Replaces the old 4-tier TrailingStopManager. New system:
 - Trades close at M1 candle close (when minute changes)
-- $5 profit breakeven: moves SL to entry + $1
-- Tight trailing after breakeven: trails by TRAIL_DISTANCE_AFTER_BE
+- $6 PnL breakeven trigger: moves SL to lock $5 profit
+- Tight trailing after breakeven: trails $1 price distance behind market
 - Advanced M1 reversal detection for early loss cutting
 - Runs on 100ms interval like old trailing stop
 """
@@ -223,7 +223,7 @@ class CandleCloseManager:
 
     def _check_breakeven(self, current_price: float) -> bool:
         """
-        Check if profit >= $5 threshold to move SL to breakeven (entry + $1).
+        Check if profit >= $6 threshold to move SL to lock $5 profit.
 
         Returns:
             True if BE move should be applied, False otherwise.
@@ -235,20 +235,25 @@ class CandleCloseManager:
         return pnl >= Config.BREAKEVEN_PROFIT_THRESHOLD
 
     def _get_be_sl_price(self) -> float:
-        """Compute the breakeven SL price (entry + $1 lock)."""
-        lock = Config.BREAKEVEN_LOCK_AMOUNT
+        """Compute the breakeven SL price by converting dollar lock to price distance.
+
+        Lock $5 profit: lockDist = $5 / (lot_size * contract_size)
+        For 0.10 lots XAUUSD (100 oz): lockDist = $5 / (0.10 * 100) = $0.50
+        BUY: SL = entry + $0.50, SELL: SL = entry - $0.50
+        """
+        lock_dist = Config.BREAKEVEN_LOCK_AMOUNT / (Config.LOT_SIZE * Config.CONTRACT_SIZE)
         if self._direction == "BUY":
-            return self._entry_price + lock
+            return self._entry_price + lock_dist
         elif self._direction == "SELL":
-            return self._entry_price - lock
+            return self._entry_price - lock_dist
         return self._entry_price
 
     def _compute_trail_sl(self, current_price: float) -> Optional[float]:
         """
         Compute tight trailing SL after breakeven has been applied.
 
-        After BE locks $1 profit, the trail kicks in: SL trails behind
-        current price by TRAIL_DISTANCE_AFTER_BE. Trail only moves in
+        After BE locks $5 profit, the trail kicks in: SL trails behind
+        current price by TRAIL_DISTANCE_AFTER_BE ($1.00). Trail only moves in
         favorable direction (never widens the SL).
 
         Returns:
@@ -396,7 +401,7 @@ class CandleCloseManager:
             )
             # Only mark as moved after successful write
             with self._lock:
-                if reason == "breakeven_5_lock_1":
+                if reason == "breakeven_6_lock_5":
                     self._be_moved = True
                 # Update trailing SL level
                 self._last_trail_sl = new_sl
@@ -443,7 +448,7 @@ class CandleCloseManager:
                     # Priority 3: Breakeven move
                     elif self._check_breakeven(current_price):
                         modify_sl = self._get_be_sl_price()
-                        modify_reason = "breakeven_5_lock_1"
+                        modify_reason = "breakeven_6_lock_5"
                         fire_ticket = self._ticket
                     # Priority 4: Tight trailing after breakeven
                     elif self._be_moved:

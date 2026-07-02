@@ -307,11 +307,12 @@ void ManageOpenPositions()
             entryTime = currentTime;
         }
 
-        // --- BREAKEVEN LOGIC: $5 profit -> move SL to entry + lockDist ---
-        // Brain-controlled threshold or default $5/$1
+        // --- BREAKEVEN LOGIC: $6 profit -> move SL to entry + lockDist ---
+        // Brain-controlled threshold or default $6/$5
         double beProfit = (g_brain_be_profit > 0) ? g_brain_be_profit : InpBreakevenProfit;
         // Convert dollar lock amount to price distance using lot size and contract size
-        double beLock = 1.00 / (InpDefaultLotSize * 100.0);
+        // Lock $5 profit: lockDist = $5 / (0.10 lots * 100 contract) = $0.50
+        double beLock = InpBreakevenLock / (InpDefaultLotSize * 100.0);
 
         // Minimum stop distance from broker
         double minStopDist = (SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) + 1)
