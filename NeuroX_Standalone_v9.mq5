@@ -366,18 +366,26 @@ void TryEntry(string direction, double price, double ema60Val)
    int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
    // Compute SL level
+   // Fix #1: SL distance computed from execution price (ask for BUY, bid for SELL)
    double slPrice = 0.0;
    if(InpEmaSlEnabled && ema60Val > 0.0)
    {
       // EMA-based SL at 60 EMA level
-      double slDistance = MathAbs(price - ema60Val);
-      if(slDistance < InpEmaSlMinDistance)
-         slDistance = InpEmaSlMinDistance;
-
+      double slDistance = 0.0;
       if(direction == "BUY")
-         slPrice = NormalizeDouble(bid - slDistance, digits);
+      {
+         slDistance = MathAbs(ask - ema60Val);
+         if(slDistance < InpEmaSlMinDistance)
+            slDistance = InpEmaSlMinDistance;
+         slPrice = NormalizeDouble(ask - slDistance, digits);
+      }
       else
-         slPrice = NormalizeDouble(ask + slDistance, digits);
+      {
+         slDistance = MathAbs(bid - ema60Val);
+         if(slDistance < InpEmaSlMinDistance)
+            slDistance = InpEmaSlMinDistance;
+         slPrice = NormalizeDouble(bid + slDistance, digits);
+      }
    }
    else
    {
@@ -403,8 +411,8 @@ void TryEntry(string direction, double price, double ema60Val)
    {
       g_lastTradeTime = TimeCurrent();
       g_tradesToday++;
+      // Fix #4: Store preliminary ticket, will be validated on next cycle
       g_trackedTicket = g_trade.ResultDeal();
-      // Get actual position ticket
       if(g_trackedTicket == 0)
          g_trackedTicket = g_trade.ResultOrder();
       g_entryPrice = g_trade.ResultPrice();
@@ -634,19 +642,12 @@ void CheckCandleCloseExit(double currentPrice)
          if(g_position.Magic() != InpMagicNumber || g_position.Symbol() != _Symbol) continue;
          if(g_position.Ticket() != g_trackedTicket) continue;
 
-         bool isBuy = (g_position.PositionType() == POSITION_TYPE_BUY);
-         double entryPrice = g_position.PriceOpen();
-         double price = isBuy ? SymbolInfoDouble(_Symbol, SYMBOL_BID)
-                              : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         // Fix #2: Use broker-reported total PnL (includes swap + commission)
+         double profit = g_position.Profit() + g_position.Swap() + g_position.Commission();
 
-         // Compute actual dollar PnL
-         double priceDiff = isBuy ? (price - entryPrice) : (entryPrice - price);
-         double actualPnl = priceDiff * InpLotSize * InpContractSize;
-
-         if(actualPnl > 0.0)
+         if(profit > 0.0)
          {
             // In profit - close the position
-            double profit = g_position.Profit() + g_position.Swap() + g_position.Commission();
             if(g_trade.PositionClose(g_trackedTicket))
             {
                Print("[NeuroX Standalone] CANDLE CLOSE EXIT: Ticket ", g_trackedTicket,
@@ -669,17 +670,25 @@ void CheckReversalExit(double currentPrice)
 {
    if(g_trackedTicket == 0) return;
 
-   // Get current forming bar (index 0)
+   // Get current forming bar (index 0) plus completed bars for range comparison
    double open[], high[], low[], close[];
    ArraySetAsSeries(open, true);
    ArraySetAsSeries(high, true);
    ArraySetAsSeries(low, true);
    ArraySetAsSeries(close, true);
 
-   if(CopyOpen(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, open) < REVERSAL_BARS + 1) return;
-   if(CopyHigh(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, high) < REVERSAL_BARS + 1) return;
-   if(CopyLow(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, low) < REVERSAL_BARS + 1) return;
-   if(CopyClose(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, close) < REVERSAL_BARS + 1) return;
+   // Fix #5: Only require 4 bars minimum (current bar + 3 completed) to match Python's 3-bar minimum
+   int barsCopied = CopyOpen(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, open);
+   if(barsCopied < 4) return;
+   int barsHigh = CopyHigh(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, high);
+   if(barsHigh < 4) return;
+   int barsLow = CopyLow(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, low);
+   if(barsLow < 4) return;
+   int barsClose = CopyClose(_Symbol, PERIOD_M1, 0, REVERSAL_BARS + 1, close);
+   if(barsClose < 4) return;
+
+   // Use the minimum number of bars actually available
+   int availableBars = MathMin(MathMin(barsCopied, barsHigh), MathMin(barsLow, barsClose));
 
    // Analyze current forming bar (index 0)
    double barOpen = open[0];
@@ -720,10 +729,11 @@ void CheckReversalExit(double currentPrice)
       return;
    }
 
-   // Check candle range vs recent average range (last 10 completed bars)
+   // Check candle range vs recent average range (use available completed bars, up to REVERSAL_BARS)
    double sumRange = 0.0;
    int rangeCount = 0;
-   for(int i = 1; i <= REVERSAL_BARS; i++)
+   int maxRange = MathMin(REVERSAL_BARS, availableBars - 1); // exclude current bar (index 0)
+   for(int i = 1; i <= maxRange; i++)
    {
       double r = high[i] - low[i];
       if(r > 0.0)
@@ -789,9 +799,39 @@ void DetectSLHit()
       }
    }
 
+   // Fix #4: If tracked ticket not found, scan by magic/symbol and adopt newest position
    if(!positionExists)
    {
-      // Position gone - look up deal history for profit
+      ulong newestTicket = 0;
+      datetime newestTime = 0;
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(!g_position.SelectByIndex(i)) continue;
+         if(g_position.Magic() != InpMagicNumber || g_position.Symbol() != _Symbol) continue;
+         datetime posTime = (datetime)g_position.Time();
+         if(posTime > newestTime)
+         {
+            newestTime = posTime;
+            newestTicket = g_position.Ticket();
+         }
+      }
+
+      if(newestTicket > 0)
+      {
+         // Adopt the found position (ticket mismatch resolved)
+         Print("[NeuroX Standalone] TICKET MISMATCH: Expected ", g_trackedTicket,
+               " not found. Adopting ticket ", newestTicket);
+         g_trackedTicket = newestTicket;
+         // Update entry info from adopted position
+         if(g_position.SelectByTicket(newestTicket))
+         {
+            g_entryPrice = g_position.PriceOpen();
+            g_entryDirection = (g_position.PositionType() == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+         }
+         return;
+      }
+
+      // Position truly gone - look up deal history for profit
       double closedProfit = 0.0;
       if(HistorySelect(TimeCurrent() - 300, TimeCurrent()))
       {
@@ -871,8 +911,8 @@ double ComputeAvgATR()
    double atrBuf[];
    ArraySetAsSeries(atrBuf, true);
 
-   // Get more ATR values to compute the average
-   int barsNeeded = period * 3;
+   // Fix #3: Match Python's 14-bar ATR average (was 42, now 14)
+   int barsNeeded = period;
    if(CopyBuffer(g_atrHandle, 0, 0, barsNeeded, atrBuf) < barsNeeded)
       return 0.0;
 

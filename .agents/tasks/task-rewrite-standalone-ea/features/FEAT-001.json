@@ -45,5 +45,5 @@
     "Verify no #include statements beyond Trade\\Trade.mqh and Trade\\PositionInfo.mqh"
   ],
   "blocked_reason": null,
-  "findings": "All 8 strategy components implemented and verified. Braces balance (105/105). All input parameter defaults match config.py. No MQL5 compiler available so validation is by inspection only. The file is 1347 lines, single self-contained EA with only Trade/Trade.mqh and Trade/PositionInfo.mqh includes."
+  "findings": "All 8 strategy components implemented and verified. Braces balance (111/111). All input parameter defaults match config.py. No MQL5 compiler available so validation is by inspection only. The file is 1387 lines, single self-contained EA with only Trade/Trade.mqh and Trade/PositionInfo.mqh includes. Post-review fixes applied: (1) SL distance computed from execution price (ask for BUY, bid for SELL) instead of bid for both; (2) Candle-close exit uses broker-reported Profit()+Swap()+Commission() instead of raw price math; (3) Average ATR window changed from 42 to 14 bars matching Python compute_atr(); (4) Ticket mismatch fallback scans positions by magic/symbol and adopts newest if tracked ticket not found; (5) Reversal detection works with as few as 3 completed bars (4 total) instead of requiring 11."
 }
