@@ -260,8 +260,10 @@ void DetectBrokerClosedPositions()
 
 
 //+------------------------------------------------------------------+
-//| Manage open positions with dynamic trailing SL                     |
+//| Manage open positions with breakeven SL only                       |
 //| Called on EVERY TICK for real-time position management              |
+//| Candle-close exit and reversal detection handled by Python.         |
+//| EA only handles: $5 BE move and emergency close.                   |
 //+------------------------------------------------------------------+
 void ManageOpenPositions()
 {
@@ -272,15 +274,8 @@ void ManageOpenPositions()
     int positionsManaged = 0;
     string trailInfo = "";
 
-    // Detect broker-closed positions first
+    // Detect broker-closed positions first (SL hits)
     DetectBrokerClosedPositions();
-
-    // Update momentum price snapshot
-    if(g_momentumTime == 0 || (currentTime - g_momentumTime) >= InpMomentumLookback)
-    {
-        g_momentumPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-        g_momentumTime = currentTime;
-    }
 
     // Loop through all positions with this EA's magic number
     for(int i = PositionsTotal() - 1; i >= 0; i--)
@@ -311,129 +306,49 @@ void ManageOpenPositions()
             TrackNewPosition(ticket, entryPrice, volume);
             entryTime = currentTime;
         }
-        int holdSeconds = (int)(currentTime - entryTime);
 
+        // --- BREAKEVEN LOGIC: $5 profit -> move SL to entry + $1 ---
+        // Brain-controlled threshold or default $5/$1
+        double beProfit = (g_brain_be_profit > 0) ? g_brain_be_profit : InpBreakevenProfit;
+        double beLock = 1.00;  // Lock $1 profit at breakeven
 
-        // --- 1. TIME-BASED EXIT ---
-        if(holdSeconds > InpMaxHoldNoProfit && profit < InpMinProfitTarget)
+        if(profit >= beProfit)
         {
-            Print("[NeuroX] TIME EXIT: Ticket ", ticket,
-                  " held ", holdSeconds, "s with profit $",
-                  DoubleToString(profit, 2), " < $", DoubleToString(InpMinProfitTarget, 2));
-            g_trade.PositionClose(ticket);
-            WriteConfirmation(isBuy ? "BUY" : "SELL", volume, currentPrice,
-                              currentSL, 0, "CLOSED", ticket, profit, 0.0);
-            UpdateDailyStats_TradeClosed(profit);
-            UntrackPosition(ticket);
-            g_trailStatus = "Time exit: " + IntegerToString(holdSeconds) + "s";
-            continue;
-        }
+            double newSL = 0;
+            if(isBuy)
+                newSL = NormalizeDouble(entryPrice + beLock, digits);
+            else
+                newSL = NormalizeDouble(entryPrice - beLock, digits);
 
-        // --- 2. MOMENTUM REVERSAL EXIT ---
-        if(g_momentumPrice > 0 && holdSeconds > InpMomentumLookback)
-        {
-            double momentumDiff = currentPrice - g_momentumPrice;
-            bool momentumFading = false;
-
-            if(isBuy && momentumDiff < -InpMomentumReverse)
-                momentumFading = true;
-            else if(!isBuy && momentumDiff > InpMomentumReverse)
-                momentumFading = true;
-
-            if(momentumFading && profit > 0)
+            // Only move SL in favorable direction (never widen)
+            bool shouldModify = false;
+            if(isBuy)
             {
-                Print("[NeuroX] MOMENTUM EXIT: Ticket ", ticket,
-                      " reversal $", DoubleToString(MathAbs(momentumDiff), 2),
-                      " Profit: $", DoubleToString(profit, 2));
-                g_trade.PositionClose(ticket);
-                WriteConfirmation(isBuy ? "BUY" : "SELL", volume, currentPrice,
-                                  currentSL, 0, "CLOSED", ticket, profit, 0.0);
-                UpdateDailyStats_TradeClosed(profit);
-                UntrackPosition(ticket);
-                g_trailStatus = "Momentum exit: $" + DoubleToString(profit, 2);
-                continue;
+                if(newSL > currentSL)
+                    shouldModify = true;
             }
-        }
+            else
+            {
+                if(currentSL == 0 || newSL < currentSL)
+                    shouldModify = true;
+            }
 
-
-        // --- 3. PROGRESSIVE TRAILING STOP LOSS ---
-        double newSL = currentSL;
-        string tierLabel = "";
-        ENUM_TRAIL_TIER tier = TRAIL_INIT;
-
-        // Brain-controlled thresholds
-        double activeBeProfit   = (g_brain_be_profit   > 0) ? g_brain_be_profit   : InpBreakevenProfit;
-        double activeTrailStart = (g_brain_trail_start > 0) ? g_brain_trail_start : InpTrailStart;
-
-        if(profit >= InpTrailVeryTight)
-        {
-            // Tier 4: Very tight trail
-            double trailDist = InpTrailDist3;
-            newSL = isBuy ? NormalizeDouble(currentPrice - trailDist, digits)
-                          : NormalizeDouble(currentPrice + trailDist, digits);
-            tierLabel = "T4($" + DoubleToString(InpTrailDist3, 2) + ")";
-            tier = TRAIL_VERY_TIGHT;
-        }
-        else if(profit >= InpTrailTight)
-        {
-            // Tier 3: Tight trail
-            double trailDist = InpTrailDist2;
-            newSL = isBuy ? NormalizeDouble(currentPrice - trailDist, digits)
-                          : NormalizeDouble(currentPrice + trailDist, digits);
-            tierLabel = "T3($" + DoubleToString(InpTrailDist2, 2) + ")";
-            tier = TRAIL_TIGHT;
-        }
-        else if(profit >= activeTrailStart)
-        {
-            // Tier 2: Standard trail
-            double trailDist = InpTrailDist1;
-            newSL = isBuy ? NormalizeDouble(currentPrice - trailDist, digits)
-                          : NormalizeDouble(currentPrice + trailDist, digits);
-            tierLabel = "T2($" + DoubleToString(InpTrailDist1, 2) + ")";
-            tier = TRAIL_STANDARD;
-        }
-        else if(profit >= activeBeProfit)
-        {
-            // Tier 1: Breakeven + spread + buffer
-            double spreadPts = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) *
-                               SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-            double beBuffer = spreadPts + InpBEProfitBuffer;
-            newSL = isBuy ? NormalizeDouble(entryPrice + beBuffer, digits)
-                          : NormalizeDouble(entryPrice - beBuffer, digits);
-            tierLabel = "BE+";
-            tier = TRAIL_BREAKEVEN;
+            if(shouldModify)
+            {
+                if(g_trade.PositionModify(ticket, newSL, currentTP))
+                {
+                    Print("[NeuroX] BE MOVE: Ticket ", ticket,
+                          " SL=", DoubleToString(newSL, digits),
+                          " (profit $", DoubleToString(profit, 2), " >= $",
+                          DoubleToString(beProfit, 2), ")");
+                }
+            }
+            trailInfo = "BE+ P:" + DoubleToString(profit, 2);
         }
         else
         {
-            tierLabel = "Init";
-            tier = TRAIL_INIT;
+            trailInfo = "Wait P:" + DoubleToString(profit, 2);
         }
-
-
-        // Only move SL in favorable direction (never widen)
-        bool shouldModify = false;
-        if(isBuy)
-        {
-            if(newSL > currentSL && newSL != currentSL)
-                shouldModify = true;
-        }
-        else
-        {
-            if(currentSL == 0 || (newSL < currentSL && newSL != currentSL))
-                shouldModify = true;
-        }
-
-        if(shouldModify)
-        {
-            if(g_trade.PositionModify(ticket, newSL, currentTP))
-            {
-                Print("[NeuroX] TRAIL ", tierLabel, ": Ticket ", ticket,
-                      " SL=", DoubleToString(newSL, digits),
-                      " (profit $", DoubleToString(profit, 2), ")");
-            }
-        }
-
-        trailInfo = tierLabel + " P:" + DoubleToString(profit, 2);
     }
 
     // Update trail status for dashboard

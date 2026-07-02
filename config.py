@@ -23,13 +23,9 @@ class Config:
     # Trading
     LOT_SIZE = 0.10
     COOLDOWN_SECONDS = 1
-    MAX_HOLD_SECONDS = 120
-    MAX_POSITIONS = 5  # Max positions before stopping signals
-    SCALE_IN_THRESHOLD = 0.30  # $ tick momentum needed to scale in additional positions
+    MAX_POSITIONS = 1  # Only 1 trade at a time (close at candle close, then re-enter)
 
-    # Momentum strength gate for multi-position scaling
-    # Tick momentum: price move must exceed this multiple of TICK_MOMENTUM_THRESHOLD
-    # Bar momentum: price move must exceed this multiple of MOMENTUM_THRESHOLD
+    # Momentum strength gate (legacy, kept for compatibility)
     STRONG_MOMENTUM_MULT = 1.5  # 1.5x base threshold = strong momentum
 
     # Hysteresis (minimum price move before reversing direction)
@@ -44,15 +40,33 @@ class Config:
     LOW_ATR_LOOKBACK = 7    # Smoother in calm markets
     ATR_THRESHOLD_MULT = 1.5  # ATR > 1.5x avg = high volatility
 
-    # Trailing stop tiers: (profit_threshold, lock_amount)
-    # NOTE: Retained for reference/future use. The EA handles trailing stops
-    # tick-by-tick; this Python-side config is not actively consumed by main.py.
+    # Trailing stop tiers: DEPRECATED - replaced by candle-close exit system
+    # Kept for backward compatibility with any code that references it
     TRAIL_TIERS = [
-        (0.50, 0.00),   # After $0.50 profit: trail at breakeven
-        (1.00, 0.50),   # After $1.00 profit: lock $0.50
-        (2.00, 1.50),   # After $2.00 profit: lock $1.50
-        (3.00, 2.50),   # After $3.00 profit: lock $2.50
+        (5.00, 1.00),   # After $5.00 profit: lock $1.00 (breakeven)
     ]
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Candle-Close Exit System
+    # Trade closes at M1 candle close, no TP. SL at swing high/low.
+    # ═══════════════════════════════════════════════════════════════════
+    CANDLE_CLOSE_EXIT = True              # Enable candle-close exit mode
+    NO_TP = True                          # No take profit on orders
+
+    # Swing High/Low SL placement
+    SWING_SL_LOOKBACK = 10                # Bars to look back for swing hi/lo
+    SWING_SL_MIN_DISTANCE = 0.50          # Minimum SL distance from entry ($)
+
+    # Breakeven logic
+    BREAKEVEN_PROFIT_THRESHOLD = 5.00     # $ profit to trigger BE move
+    BREAKEVEN_LOCK_AMOUNT = 1.00          # $ profit locked at breakeven
+
+    # Advanced M1 Reversal Detection (early loss cutting)
+    REVERSAL_DETECTION_ENABLED = True
+    REVERSAL_CANDLE_BODY_MIN = 0.40       # Minimum candle body size ($)
+    REVERSAL_CANDLE_BODY_RATIO = 0.70     # Body must be >= 70% of candle range
+    REVERSAL_ATR_MULT = 1.5              # Candle must be >= 1.5x recent ATR
+    REVERSAL_VOLUME_SPIKE = 1.5          # Volume must be 1.5x average (if available)
 
     # Bridge
     SIGNAL_FILE_PREFIX = "neurox_v9_"

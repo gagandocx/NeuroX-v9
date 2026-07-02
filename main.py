@@ -1,6 +1,7 @@
 """
 NeuroX v9.0 - EMA Trend Trader
 Main loop: read ticks, read EMA from EA, fire signal on EMA direction.
+Candle-close exit system: entry -> wait for M1 candle close -> exit -> re-evaluate.
 Zero network dependency - reads local tick price file from EA.
 """
 
@@ -15,6 +16,8 @@ from config import Config
 from bridge import Bridge
 from tick_collector import TickCollector
 from choppy_filter import is_market_choppy
+from swing_levels import compute_swing_sl
+from trailing_stop import CandleCloseManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,34 +107,39 @@ def get_ema_trend_label_from_ea(ea_ema9: float, ea_ema15: float, current_price: 
         return "FLAT"
 
 
-def fire_signal(bridge: Bridge, direction: str, price: float, label: str):
+def fire_signal(bridge: Bridge, direction: str, price: float, label: str,
+                sl_pips: float = 0.0):
     """Fire a trade signal and update cooldown state."""
     global last_signal_time
 
-    sig = create_signal(direction, price)
+    sig = create_signal(direction, price, sl_pips=sl_pips)
     if bridge.write_signal(sig):
         last_signal_time = time.time()
-        logger.info(f"{label}: {direction} @ ${price:.2f}")
+        logger.info(f"{label}: {direction} @ ${price:.2f} SL=${sl_pips:.2f}")
 
 
-def create_signal(direction: str, price: float) -> dict:
+def create_signal(direction: str, price: float, sl_pips: float = 0.0) -> dict:
     """Create a signal dict for the bridge.
 
     Args:
         direction: 'BUY' or 'SELL'.
         price: Current price at signal time.
+        sl_pips: Stop loss distance in $ (swing high/low distance).
     """
     lot = Config.LOT_SIZE
     lot = max(Config.MIN_LOT_SIZE, min(lot, Config.MAX_LOT_SIZE))
     lot = round(lot, 2)
+
+    # No TP when candle-close exit is active
+    tp_pips = 0.0 if Config.NO_TP else 9999.0
 
     return {
         "timestamp": datetime.now().strftime("%Y.%m.%d %H:%M:%S"),
         "symbol": Config.SYMBOL,
         "action": direction,
         "confidence": 1.0,
-        "sl_pips": 0.0,
-        "tp_pips": 9999.0,
+        "sl_pips": sl_pips,
+        "tp_pips": tp_pips,
         "lot_size": lot,
         "model_name": "ema_trend_v9",
         "regime": "momentum",
@@ -155,7 +163,36 @@ def main():
 
     tick_collector = TickCollector(tick_file_path)
 
-    logger.info("Main loop running. Ctrl+C to stop.")
+    # Candle close manager for exit management
+    def get_bar_minute():
+        if tick_collector._bar_start_minute is not None:
+            return tick_collector._bar_start_minute.minute
+        return None
+
+    def get_current_bar():
+        if tick_collector._bar_open > 0.0:
+            return {
+                "Open": tick_collector._bar_open,
+                "High": tick_collector._bar_high,
+                "Low": tick_collector._bar_low,
+                "Close": tick_collector._bar_close,
+            }
+        return None
+
+    def get_recent_bars():
+        return list(tick_collector._completed_bars)
+
+    candle_mgr = CandleCloseManager(
+        get_price_fn=lambda: tick_collector.last_price,
+        write_exit_fn=lambda ticket, action, lot_pct, new_sl, reason:
+            bridge.write_exit_signal(ticket, action, lot_pct, new_sl, reason),
+        get_bar_minute_fn=get_bar_minute,
+        get_current_bar_fn=get_current_bar,
+        get_recent_bars_fn=get_recent_bars,
+    )
+    candle_mgr.start()
+
+    logger.info("Main loop running (candle-close exit mode). Ctrl+C to stop.")
 
     try:
         while running:
@@ -172,7 +209,6 @@ def main():
 
             # Determine EMA direction via price vs EMA 9
             # Only BUY when price > EMA 9, only SELL when price < EMA 9
-            # This ensures directional alignment with the 9 EMA trend
             ema_allowed_direction = None
             if ea_ema9 > 0.0 and current_price > 0.0:
                 if current_price > ea_ema9:
@@ -180,7 +216,7 @@ def main():
                 elif current_price < ea_ema9:
                     ema_allowed_direction = "SELL"
 
-            # 4. Signal logic: momentum-based scaling using EA's actual position count
+            # 4. Signal logic: single position, candle-close exit cycle
             intel_decision = "WAITING"
             intel_reason = ""
 
@@ -207,22 +243,27 @@ def main():
                 elif ea_open_positions >= Config.MAX_POSITIONS:
                     intel_decision = "MAX_POS"
                     intel_reason = ""
-                elif ea_open_positions >= 1:
-                    # Already have position(s) - scale only on momentum
-                    tick_momentum = tick_collector.get_tick_momentum()
-                    tick_strength = tick_collector.get_tick_momentum_strength()
-                    if (tick_momentum == ema_allowed_direction
-                            and tick_strength >= Config.SCALE_IN_THRESHOLD
-                            and can_trade()):
-                        fire_signal(bridge, ema_allowed_direction, current_price, "SCALE IN")
-                        intel_decision = "SCALING"
-                        intel_reason = ""
-                    else:
-                        intel_decision = "HOLDING"
-                        intel_reason = ""
+                elif candle_mgr.is_tracking:
+                    # Already have a position being managed - wait for candle close
+                    intel_decision = "HOLDING"
+                    intel_reason = "CANDLE_WAIT"
                 elif can_trade():
-                    # No positions - fire first entry
-                    fire_signal(bridge, ema_allowed_direction, current_price, "EMA TREND")
+                    # No position - fire entry with swing SL
+                    completed_bars = list(tick_collector._completed_bars)
+                    swing_sl = compute_swing_sl(
+                        completed_bars, ema_allowed_direction, current_price
+                    )
+                    # Convert swing SL to distance
+                    sl_distance = abs(current_price - swing_sl)
+
+                    fire_signal(
+                        bridge, ema_allowed_direction, current_price,
+                        "EMA TREND", sl_pips=sl_distance
+                    )
+                    # Start tracking for candle-close exit
+                    candle_mgr.start_tracking(
+                        ema_allowed_direction, current_price, "latest"
+                    )
                     intel_decision = "TRADING"
                     intel_reason = ""
                 else:
@@ -237,6 +278,10 @@ def main():
             else:
                 intel_decision = "WAITING"
                 intel_reason = "FLAT"
+
+            # Check if candle close manager has closed the position
+            if candle_mgr.close_fired:
+                candle_mgr.stop_tracking()
 
             # 5. Write intelligence (EMA_TREND, decision)
             ema_label = get_ema_trend_label_from_ea(ea_ema9, ea_ema15, current_price)
@@ -254,6 +299,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        candle_mgr.stop()
         logger.info(f"NeuroX v{Config.VERSION} stopped.")
 
 

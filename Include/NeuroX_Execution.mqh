@@ -76,10 +76,14 @@ double CalculateSL(double price, bool isBuy, int digits, double pipValue)
 }
 
 //+------------------------------------------------------------------+
-//| Calculate TP price (0 if dynamic trailing mode)                    |
+//| Calculate TP price (0 if dynamic trailing mode or no TP)           |
 //+------------------------------------------------------------------+
 double CalculateTP(double price, bool isBuy, int digits, double pipValue)
 {
+    // No TP mode: when tp_pips is 0, return 0 (candle-close exit handles it)
+    if(g_lastTPPips <= 0)
+        return 0;
+
     // Dynamic trailing mode: if tp_pips >= threshold, set TP=0
     if(g_lastTPPips >= InpDynamicTPThreshold)
         return 0;
